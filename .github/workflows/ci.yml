@@ -54,8 +54,11 @@ jobs:
           sudo mv restic /usr/local/bin/restic
           restic version
 
-      - name: Run e2e
+      - name: Run e2e (tempdir + files recipe)
         run: agent/e2e/run.sh
+
+      - name: Run e2e (docker + postgres recipe)
+        run: agent/e2e/run-docker.sh
 
   web:
     name: Web (Next.js)
