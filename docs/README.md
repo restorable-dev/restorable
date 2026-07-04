@@ -7,3 +7,6 @@ feature they document (see CLAUDE.md engineering conventions).
   disk-space pre-flight, read-only guarantee
 - [Commands](commands.md) — `restorable test`, `restorable run`, exit codes
 - [The `files` recipe check](recipes-files.md) — asserting restored content
+- [Database checks](recipes-databases.md) — `postgres`, `mysql`, `sqlite`
+- [The `docker-app` check](recipes-docker-app.md) — boot the real app on
+  restored data
