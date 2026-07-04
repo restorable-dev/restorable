@@ -44,14 +44,55 @@ checks:
 			wantErr: "missing a type",
 		},
 		{
-			name:    "phase 2 type has helpful error",
-			yaml:    "name: x\nchecks:\n  - type: postgres\n",
-			wantErr: "not available yet",
-		},
-		{
 			name:    "unknown type",
 			yaml:    "name: x\nchecks:\n  - type: zfs\n",
 			wantErr: `unknown check type "zfs"`,
+		},
+		{
+			name: "valid postgres check",
+			yaml: "name: x\nchecks:\n  - type: postgres\n    dump: db/dump.sql\n    tables:\n      - name: users\n        min_rows: 1\n",
+		},
+		{
+			name:    "postgres without dump",
+			yaml:    "name: x\nchecks:\n  - type: postgres\n",
+			wantErr: "needs a dump path",
+		},
+		{
+			name:    "postgres bad table name",
+			yaml:    "name: x\nchecks:\n  - type: postgres\n    dump: d.sql\n    tables:\n      - name: \"users; drop table x\"\n",
+			wantErr: "plain identifier",
+		},
+		{
+			name: "valid mysql check",
+			yaml: "name: x\nchecks:\n  - type: mysql\n    dump: db/dump.sql\n",
+		},
+		{
+			name: "valid sqlite check",
+			yaml: "name: x\nchecks:\n  - type: sqlite\n    path: data/app.db\n",
+		},
+		{
+			name:    "sqlite without path",
+			yaml:    "name: x\nchecks:\n  - type: sqlite\n",
+			wantErr: "needs a path",
+		},
+		{
+			name: "valid docker-app check",
+			yaml: "name: x\nchecks:\n  - type: docker-app\n    image: nextcloud:apache\n    mount: {restored: \".\", at: /var/www/html}\n    ready: {http: \"http://localhost:8080/status.php\", contains: installed, timeout: 90s}\n",
+		},
+		{
+			name:    "docker-app without ready probe",
+			yaml:    "name: x\nchecks:\n  - type: docker-app\n    image: i\n    mount: {restored: \".\", at: /data}\n",
+			wantErr: "ready.http",
+		},
+		{
+			name:    "docker-app bad timeout",
+			yaml:    "name: x\nchecks:\n  - type: docker-app\n    image: i\n    mount: {at: /data}\n    ready: {http: \"http://localhost/\", timeout: soon}\n",
+			wantErr: "invalid duration",
+		},
+		{
+			name:    "docker-app relative mount point",
+			yaml:    "name: x\nchecks:\n  - type: docker-app\n    image: i\n    mount: {at: html}\n    ready: {http: \"http://localhost/\"}\n",
+			wantErr: "absolute container path",
 		},
 		{
 			name:    "unknown field in files check",

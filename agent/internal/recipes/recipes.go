@@ -35,11 +35,16 @@ type Root struct {
 }
 
 // Target is what checks run against: the restored tree plus enough context
-// to read original content back out of the repository.
+// to read original content back out of the repository and to spin up
+// throwaway containers.
 type Target struct {
 	Roots      []Root
 	SnapshotID string
 	Dumper     Dumper
+	// Docker lazily provides the container runner. It returns a
+	// user-facing error when Docker is unavailable, so checks that need
+	// containers degrade gracefully while everything else keeps working.
+	Docker func(ctx context.Context) (ContainerRunner, error)
 }
 
 // Check is one verification step within a recipe.
@@ -55,11 +60,6 @@ type Check interface {
 type Recipe struct {
 	Name   string
 	Checks []Check
-}
-
-// phase2Types exist in the product spec but are not implemented yet.
-var phase2Types = map[string]bool{
-	"postgres": true, "mysql": true, "sqlite": true, "docker-app": true,
 }
 
 // Load reads and validates a recipe YAML file.
@@ -114,23 +114,33 @@ func parseCheck(node yaml.Node) (Check, error) {
 	if err := node.Decode(&head); err != nil {
 		return nil, fmt.Errorf("parse check: %w", err)
 	}
-	switch {
-	case head.Type == "files":
-		var fc FilesCheck
-		if err := strictDecode(node, &fc); err != nil {
-			return nil, fmt.Errorf("files check: %w", err)
-		}
-		if err := fc.validate(); err != nil {
-			return nil, fmt.Errorf("files check: %w", err)
-		}
-		return &fc, nil
-	case head.Type == "":
-		return nil, errors.New("check is missing a type")
-	case phase2Types[head.Type]:
-		return nil, fmt.Errorf("check type %q is not available yet in this version (v1 currently supports: files)", head.Type)
-	default:
-		return nil, fmt.Errorf("unknown check type %q (supported: files)", head.Type)
+	var check interface {
+		Check
+		validate() error
 	}
+	switch head.Type {
+	case "files":
+		check = &FilesCheck{}
+	case "postgres":
+		check = &PostgresCheck{}
+	case "mysql":
+		check = &MySQLCheck{}
+	case "sqlite":
+		check = &SQLiteCheck{}
+	case "docker-app":
+		check = &DockerAppCheck{}
+	case "":
+		return nil, errors.New("check is missing a type")
+	default:
+		return nil, fmt.Errorf("unknown check type %q (supported: files, postgres, mysql, sqlite, docker-app)", head.Type)
+	}
+	if err := strictDecode(node, check); err != nil {
+		return nil, fmt.Errorf("%s check: %w", head.Type, err)
+	}
+	if err := check.validate(); err != nil {
+		return nil, fmt.Errorf("%s check: %w", head.Type, err)
+	}
+	return check, nil
 }
 
 // strictDecode re-decodes a YAML node with unknown fields rejected, so typos
