@@ -1,0 +1,36 @@
+# Nextcloud restore verification.
+#
+# Assumes your backup covers the Nextcloud data directory (the one holding
+# config/ and data/). Adjust paths if you back up from a different root.
+name: nextcloud
+checks:
+  - type: files
+    require:
+      - path: config/config.php
+      - path: data/
+        min_files: 1
+    checksum_sample: 5
+
+  # If Nextcloud runs on SQLite, uncomment (the file is data/owncloud.db):
+  # - type: sqlite
+  #   path: data/owncloud.db
+
+  # If Nextcloud runs on PostgreSQL and your backup includes a pg_dump file
+  # (plain, custom format, or gzipped), point at it and assert core tables:
+  # - type: postgres
+  #   dump: db/nextcloud.sql
+  #   tables:
+  #     - name: oc_users
+  #       min_rows: 1
+  #     - name: oc_filecache
+  #       min_rows: 1
+
+  # Strongest check: boot the real image against restored data and require
+  # Nextcloud's status endpoint to answer. Needs Docker.
+  # - type: docker-app
+  #   image: nextcloud:apache
+  #   mount: { restored: ".", at: "/var/www/html" }
+  #   ready:
+  #     http: "http://localhost:80/status.php"
+  #     contains: '"installed":true'
+  #     timeout: 180s

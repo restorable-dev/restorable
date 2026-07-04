@@ -1,0 +1,15 @@
+# Vaultwarden restore verification.
+#
+# Assumes your backup covers the Vaultwarden data directory (default /data in
+# the container: db.sqlite3, rsa_key.pem, attachments/, ...).
+name: vaultwarden
+checks:
+  - type: files
+    require:
+      - path: db.sqlite3
+      - path: rsa_key.pem
+    checksum_sample: 3
+
+  # The database is the vault. integrity_check proves it restores usable.
+  - type: sqlite
+    path: db.sqlite3

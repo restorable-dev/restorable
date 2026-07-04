@@ -1,0 +1,27 @@
+# Immich restore verification.
+#
+# Assumes your backup covers Immich's UPLOAD_LOCATION, which also holds the
+# automatic database dumps Immich writes to backups/ (gzipped pg_dump files —
+# supported directly). Adjust the dump path to your newest dump file, or
+# point it at wherever your own pg_dump job writes.
+name: immich
+checks:
+  - type: files
+    require:
+      - path: library/
+        min_files: 1
+      - path: upload/
+    checksum_sample: 5
+
+  # Immich's own DB dumps land in backups/ under the upload location.
+  # The dump filename contains a timestamp; point this at the one your
+  # backup captures (a stable symlink or copy step in your backup job
+  # makes this deterministic).
+  - type: postgres
+    dump: backups/immich-db-backup-latest.sql.gz
+    image: postgres:16-alpine
+    tables:
+      - name: users
+        min_rows: 1
+      - name: assets
+        min_rows: 1
