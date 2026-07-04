@@ -117,7 +117,39 @@ func Run(ctx context.Context, opts Options) *report.RunResult {
 			SnapPath: p,
 		})
 	}
-	target := &recipes.Target{Roots: roots, SnapshotID: snap.ID, Dumper: runner}
+
+	// Docker is created lazily — only when a check asks for it — and every
+	// container it makes is force-removed (with volumes) on all paths out.
+	var docker *sandbox.Docker
+	defer func() {
+		if docker == nil {
+			return
+		}
+		if cerr := docker.Cleanup(); cerr != nil {
+			res.Status = report.StatusError
+			res.Error = joinNonEmpty(res.Error, report.Scrub(fmt.Sprintf("container cleanup failed: %v", cerr)))
+			res.FinishedAt = time.Now()
+		} else {
+			logf("containers cleaned up")
+		}
+	}()
+	target := &recipes.Target{
+		Roots:      roots,
+		SnapshotID: snap.ID,
+		Dumper:     runner,
+		Docker: func(ctx context.Context) (recipes.ContainerRunner, error) {
+			if docker != nil {
+				return docker, nil
+			}
+			logf("connecting to docker for container checks")
+			d, err := sandbox.NewDocker(ctx)
+			if err != nil {
+				return nil, err
+			}
+			docker = d
+			return d, nil
+		},
+	}
 
 	for _, rec := range loaded {
 		logf("running recipe %q", rec.Name)
