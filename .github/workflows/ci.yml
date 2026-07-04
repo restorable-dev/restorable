@@ -60,6 +60,56 @@ jobs:
       - name: Run e2e (docker + postgres recipe)
         run: agent/e2e/run-docker.sh
 
+  control-plane-e2e:
+    name: Control plane e2e (supabase + agent)
+    runs-on: ubuntu-latest
+    env:
+      RESTIC_VERSION: 0.18.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: supabase/setup-cli@v2
+        with:
+          version: latest
+
+      - name: Install restic
+        run: |
+          curl -fsSL -o restic.bz2 \
+            "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2"
+          bunzip2 restic.bz2 && chmod +x restic && sudo mv restic /usr/local/bin/restic
+
+      - name: Start local Supabase
+        working-directory: web
+        run: supabase start
+
+      - name: Build and start web
+        working-directory: web
+        run: |
+          npm ci
+          cp .env.example .env.local
+          npm run build
+          PORT=3100 npm run start &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:3100/login && break
+            sleep 1
+          done
+
+      - name: Run control plane e2e
+        run: |
+          export SUPABASE_ANON_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
+          web/e2e/run.sh
+
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest
