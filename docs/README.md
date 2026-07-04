@@ -10,3 +10,5 @@ feature they document (see CLAUDE.md engineering conventions).
 - [Database checks](recipes-databases.md) — `postgres`, `mysql`, `sqlite`
 - [The `docker-app` check](recipes-docker-app.md) — boot the real app on
   restored data
+- [Cloud dashboard](cloud.md) — registering agents, what data leaves your
+  machine (and what never does)

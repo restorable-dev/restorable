@@ -40,6 +40,16 @@ cleaning up the sandbox.
 restorable run --config agent.yaml
 ```
 
+## `restorable register`
+
+Connects the agent to the cloud dashboard using a one-time token minted
+there. Optional — see [cloud.md](cloud.md). After registering, `test` and
+`run` report results automatically (`--no-report` skips).
+
+```sh
+restorable register --url https://<control-plane> --token rrt_… --name my-box
+```
+
 ## `restorable version`
 
 Prints agent version, commit, build date, and platform.
