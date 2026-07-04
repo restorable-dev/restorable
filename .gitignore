@@ -1,0 +1,24 @@
+# Binaries and build output
+/agent/restorable
+/agent/dist/
+*.exe
+
+# Go
+*.test
+*.out
+
+# Node / Next.js
+node_modules/
+/web/.next/
+/web/out/
+next-env.d.ts
+
+# Env and secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
