@@ -32,6 +32,31 @@ jobs:
       - name: Build
         run: go build ./...
 
+  agent-e2e:
+    name: Agent e2e (restic fixtures)
+    runs-on: ubuntu-latest
+    env:
+      RESTIC_VERSION: 0.18.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+
+      - name: Install restic
+        run: |
+          curl -fsSL -o restic.bz2 \
+            "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2"
+          bunzip2 restic.bz2
+          chmod +x restic
+          sudo mv restic /usr/local/bin/restic
+          restic version
+
+      - name: Run e2e
+        run: agent/e2e/run.sh
+
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest
