@@ -1,0 +1,25 @@
+# Restorable agent configuration — copy to agent.yaml and adjust.
+
+# The restic repository to test. Any restic-supported backend string works:
+# a local path, s3:..., b2:..., sftp:..., rest:https://...
+repo: /srv/backups/restic
+
+# Name of the environment variable that holds the repository password.
+# The password itself never goes in this file. Default: RESTIC_PASSWORD.
+password_env: RESTIC_PASSWORD
+
+# When to run restore tests (cron syntax, used by `restorable run`).
+# `restorable test` ignores this and runs once immediately.
+schedule: "0 3 * * 0"
+
+# Verification recipes to run against the restored snapshot.
+# Paths are relative to this file.
+recipes:
+  - recipes/my-app.yaml
+
+sandbox:
+  # Where restore sandboxes are created. Default: the OS temp dir.
+  # Must have enough free space for a full restore of your latest snapshot.
+  dir: ""
+  # Extra free-space requirement on top of the estimated snapshot size.
+  min_free_space: "1GiB"

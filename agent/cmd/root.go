@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 )
 
@@ -11,14 +13,16 @@ func newRootCmd() *cobra.Command {
 		Short:         "Restorable proves your backups would actually restore",
 		Long:          "Restorable restores your latest backup snapshot into a disposable sandbox,\nruns verification recipes against it, and reports whether the restore worked.",
 		SilenceUsage:  true,
-		SilenceErrors: false,
+		SilenceErrors: true,
 	}
 	root.AddCommand(newVersionCmd())
+	root.AddCommand(newTestCmd())
+	root.AddCommand(newRunCmd())
 	return root
 }
 
 // Execute runs the root command. It returns the error instead of exiting so
 // main owns the process exit code.
-func Execute() error {
-	return newRootCmd().Execute()
+func Execute(ctx context.Context) error {
+	return newRootCmd().ExecuteContext(ctx)
 }
