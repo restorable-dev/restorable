@@ -18,8 +18,10 @@ func (e *exitError) ExitCode() int { return e.code }
 
 func newTestCmd() *cobra.Command {
 	var (
-		cfgPath string
-		jsonOut bool
+		cfgPath   string
+		jsonOut   bool
+		credsPath string
+		noReport  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "test",
@@ -41,6 +43,7 @@ func newTestCmd() *cobra.Command {
 				AgentVersion: version,
 				Logf:         logf,
 			})
+			maybeReport(cmd.Context(), credsPath, noReport, res, logf)
 			if jsonOut {
 				if err := res.WriteJSON(cmd.OutOrStdout()); err != nil {
 					return err
@@ -56,5 +59,7 @@ func newTestCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "agent.yaml", "path to agent config file")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit the result as JSON on stdout")
+	cmd.Flags().StringVar(&credsPath, "credentials", "", "cloud credentials file (default: user config dir)")
+	cmd.Flags().BoolVar(&noReport, "no-report", false, "skip reporting this run to the control plane")
 	return cmd
 }

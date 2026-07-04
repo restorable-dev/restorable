@@ -1,0 +1,225 @@
+package report
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// ErrNoCredentials means the agent is not registered with a control plane —
+// standalone mode, which is fully supported, so callers treat it as "skip
+// reporting", never as a failure.
+var ErrNoCredentials = errors.New("no cloud credentials")
+
+// Credentials connect an agent to the control plane. The API key is the only
+// secret; it authorizes exactly this agent's own submissions.
+type Credentials struct {
+	URL     string `json:"url"`
+	AgentID string `json:"agent_id"`
+	APIKey  string `json:"api_key"`
+}
+
+// DefaultCredentialsPath is where `restorable register` stores credentials
+// unless told otherwise: <user config dir>/restorable/credentials.json.
+func DefaultCredentialsPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate user config dir: %w", err)
+	}
+	return filepath.Join(dir, "restorable", "credentials.json"), nil
+}
+
+// LoadCredentials reads credentials, returning ErrNoCredentials when the
+// file does not exist.
+func LoadCredentials(path string) (*Credentials, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ErrNoCredentials
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read credentials: %w", err)
+	}
+	var c Credentials
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, fmt.Errorf("parse credentials %s: %w", path, err)
+	}
+	if c.URL == "" || c.APIKey == "" {
+		return nil, fmt.Errorf("credentials %s are incomplete", path)
+	}
+	return &c, nil
+}
+
+// SaveCredentials writes credentials with owner-only permissions.
+func SaveCredentials(path string, c *Credentials) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create credentials dir: %w", err)
+	}
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write credentials: %w", err)
+	}
+	return nil
+}
+
+// Fingerprint identifies a repository to the control plane without revealing
+// its location: sha256 of the credential-scrubbed repo string.
+func Fingerprint(repo string) string {
+	sum := sha256.Sum256([]byte(Scrub(repo)))
+	return hex.EncodeToString(sum[:])
+}
+
+// Client talks to the control plane's /api/v1.
+type Client struct {
+	baseURL string
+	apiKey  string
+	http    *http.Client
+}
+
+// NewClient builds a client from credentials.
+func NewClient(creds *Credentials) *Client {
+	return &Client{
+		baseURL: strings.TrimRight(creds.URL, "/"),
+		apiKey:  creds.APIKey,
+		http:    &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+type runPayload struct {
+	RepoFingerprint string        `json:"repo_fingerprint"`
+	RepoLabel       string        `json:"repo_label"`
+	SnapshotID      string        `json:"snapshot_id,omitempty"`
+	Status          Status        `json:"status"`
+	Error           string        `json:"error,omitempty"`
+	StartedAt       time.Time     `json:"started_at"`
+	FinishedAt      time.Time     `json:"finished_at"`
+	AgentVersion    string        `json:"agent_version"`
+	Checks          []CheckResult `json:"checks"`
+}
+
+// SubmitRun reports one run result. Only pass/fail metadata leaves the
+// machine: the repo is reduced to a fingerprint plus its scrubbed label, and
+// every string in the result was scrubbed when the result was built.
+func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
+	checks := r.Checks
+	if checks == nil {
+		checks = []CheckResult{}
+	}
+	payload := runPayload{
+		RepoFingerprint: Fingerprint(r.Repo),
+		RepoLabel:       r.Repo, // already scrubbed at result construction
+		SnapshotID:      r.SnapshotID,
+		Status:          r.Status,
+		Error:           r.Error,
+		StartedAt:       r.StartedAt,
+		FinishedAt:      r.FinishedAt,
+		AgentVersion:    r.AgentVersion,
+		Checks:          checks,
+	}
+	var resp struct {
+		RunID string `json:"run_id"`
+	}
+	return c.post(ctx, "/api/v1/runs", payload, &resp, http.StatusCreated)
+}
+
+// Heartbeat pings the control plane so stale detection knows we are alive.
+func (c *Client) Heartbeat(ctx context.Context) error {
+	return c.post(ctx, "/api/v1/heartbeat", struct{}{}, nil, http.StatusNoContent)
+}
+
+func (c *Client) post(ctx context.Context, path string, body, out any, wantStatus int) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("control plane request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // response fully read
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != wantStatus {
+		return fmt.Errorf("control plane %s: HTTP %d: %s", path, resp.StatusCode, apiError(raw))
+	}
+	if out != nil {
+		if err := json.Unmarshal(raw, out); err != nil {
+			return fmt.Errorf("control plane %s: parse response: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// Register exchanges a one-time registration token for agent credentials.
+func Register(ctx context.Context, baseURL, token, name, version string) (*Credentials, error) {
+	baseURL = strings.TrimRight(baseURL, "/")
+	body, err := json.Marshal(map[string]string{
+		"token":         token,
+		"name":          name,
+		"agent_version": version,
+	})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		baseURL+"/api/v1/agents/register", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("registration request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // response fully read
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("registration failed: HTTP %d: %s", resp.StatusCode, apiError(raw))
+	}
+	var out struct {
+		AgentID string `json:"agent_id"`
+		APIKey  string `json:"api_key"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse registration response: %w", err)
+	}
+	if out.APIKey == "" {
+		return nil, errors.New("registration response is missing the API key")
+	}
+	return &Credentials{URL: baseURL, AgentID: out.AgentID, APIKey: out.APIKey}, nil
+}
+
+// apiError extracts the error field from an API response body for messages.
+func apiError(raw []byte) string {
+	var e struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(raw, &e) == nil && e.Error != "" {
+		return e.Error
+	}
+	s := strings.TrimSpace(string(raw))
+	if len(s) > 200 {
+		s = s[:200] + "…"
+	}
+	return s
+}

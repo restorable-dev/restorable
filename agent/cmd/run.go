@@ -14,8 +14,10 @@ import (
 
 func newRunCmd() *cobra.Command {
 	var (
-		cfgPath string
-		jsonOut bool
+		cfgPath   string
+		jsonOut   bool
+		credsPath string
+		noReport  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -43,6 +45,7 @@ func newRunCmd() *cobra.Command {
 					AgentVersion: version,
 					Logf:         logger.Printf,
 				})
+				maybeReport(ctx, credsPath, noReport, res, logger.Printf)
 				if jsonOut {
 					if err := res.WriteJSON(cmd.OutOrStdout()); err != nil {
 						logger.Printf("write result: %v", err)
@@ -71,5 +74,7 @@ func newRunCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "agent.yaml", "path to agent config file")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit each result as JSON on stdout")
+	cmd.Flags().StringVar(&credsPath, "credentials", "", "cloud credentials file (default: user config dir)")
+	cmd.Flags().BoolVar(&noReport, "no-report", false, "never report runs to the control plane")
 	return cmd
 }
