@@ -12,3 +12,4 @@ feature they document (see CLAUDE.md engineering conventions).
   restored data
 - [Cloud dashboard](cloud.md) — registering agents, what data leaves your
   machine (and what never does)
+- [Alerts](alerts.md) — channels, incident dedup, staleness windows
