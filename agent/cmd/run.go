@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dabelle/restorable/agent/internal/config"
+	"github.com/dabelle/restorable/agent/internal/report"
 	"github.com/dabelle/restorable/agent/internal/verify"
 )
 
@@ -65,6 +66,11 @@ func newRunCmd() *cobra.Command {
 			}
 			c.Start()
 			logger.Printf("scheduler started (schedule %q), next run %s", cfg.Schedule, c.Entry(id).Next)
+
+			if creds := loadCredentialsQuiet(credsPath); creds != nil && !noReport {
+				logger.Printf("registered with %s, heartbeating every %s", creds.URL, heartbeatInterval)
+				go heartbeatLoop(ctx, report.NewClient(creds), logger.Printf)
+			}
 
 			<-ctx.Done()
 			logger.Printf("shutting down, waiting for any running test to finish")
