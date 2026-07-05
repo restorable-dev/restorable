@@ -1,6 +1,16 @@
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
-import { runRequestSchema } from "@/lib/api/schemas";
+import { runRequestSchema, type RunRequest } from "@/lib/api/schemas";
+import { openIncident, resolveIncident } from "@/lib/alerts/incidents";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// firstProblem summarizes what went wrong for the alert body.
+function firstProblem(run: RunRequest): string {
+  const failed = run.checks.find((c) => c.status !== "pass");
+  if (failed) {
+    return `${failed.recipe}/${failed.type}: ${failed.message || failed.status}`;
+  }
+  return run.error ?? "verification failed";
+}
 
 // POST /api/v1/runs
 // Accepts one run result from an agent. Creates the repo row on first sight
@@ -77,6 +87,50 @@ export async function POST(request: Request) {
     .from("agents")
     .update({ last_seen: new Date().toISOString(), agent_version: run.agent_version })
     .eq("id", agent.id);
+
+  // Alerting. One incident per repo: first failure alerts, repeats are
+  // suppressed by the incident index, the next pass sends a recovery notice.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const runLink = appUrl ? `\n${appUrl}/dashboard/runs/${inserted.id}` : "";
+  const incident = { userId: agent.user_id, kind: "run_failure" as const, subjectId: repo.id };
+  if (run.status === "pass") {
+    await resolveIncident(admin, incident, {
+      level: "recovery",
+      title: `Restore tests passing again — ${run.repo_label}`,
+      body: `Snapshot ${run.snapshot_id?.slice(0, 8) ?? "?"} verified.${runLink}`,
+    });
+    // A fresh successful test also clears any staleness incident.
+    await resolveIncident(
+      admin,
+      { ...incident, kind: "stale_repo" },
+      {
+        level: "recovery",
+        title: `Backup tests running again — ${run.repo_label}`,
+        body: `A successful restore test just completed.${runLink}`,
+      },
+    );
+  } else {
+    await openIncident(
+      admin,
+      incident,
+      {
+        level: "failure",
+        title: `Restore test failed — ${run.repo_label}`,
+        body: `${firstProblem(run)}${runLink}`,
+      },
+      inserted.id,
+    );
+  }
+  // Any submission proves the agent is alive.
+  await resolveIncident(
+    admin,
+    { userId: agent.user_id, kind: "agent_silent", subjectId: agent.id },
+    {
+      level: "recovery",
+      title: "Agent is back online",
+      body: "The agent just reported a test run.",
+    },
+  );
 
   return Response.json({ run_id: inserted.id }, { status: 201 });
 }
