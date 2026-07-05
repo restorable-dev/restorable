@@ -36,6 +36,12 @@ export default async function DashboardLayout({
           >
             Agents
           </Link>
+          <Link
+            href="/dashboard/alerts"
+            className="text-neutral-600 hover:underline dark:text-neutral-400"
+          >
+            Alerts
+          </Link>
         </nav>
         <form action={signOut} className="flex items-center gap-3 text-sm">
           <span className="text-neutral-500">{user?.email}</span>
