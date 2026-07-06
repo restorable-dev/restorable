@@ -103,6 +103,7 @@ jobs:
             TELEGRAM_BOT_TOKEN=e2e-token \
             TELEGRAM_API_BASE=http://127.0.0.1:8181 \
             CRON_SECRET=local-dev-cron-secret \
+            STRIPE_SECRET_KEY=sk_test_dummy_signature_only \
             npm run start &
           for i in $(seq 1 30); do
             curl -sf -o /dev/null http://localhost:3100/login && break
@@ -119,6 +120,11 @@ jobs:
           export SUPABASE_ANON_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
           export SUPABASE_SERVICE_ROLE_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["SERVICE_ROLE_KEY"])')"
           web/e2e/alerts.sh
+
+      - name: Run billing e2e
+        run: |
+          export SUPABASE_ANON_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
+          web/e2e/billing.sh
 
   web:
     name: Web (Next.js)
