@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { track } from "@/lib/analytics";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -26,6 +27,9 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       return;
+    }
+    if (mode === "signup") {
+      track("signup");
     }
     router.push("/dashboard");
     router.refresh();
