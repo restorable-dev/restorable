@@ -95,12 +95,14 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <button
-        onClick={signInWithGitHub}
-        className="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700"
-      >
-        Continue with GitHub
-      </button>
+      {process.env.NEXT_PUBLIC_ENABLE_GITHUB_AUTH === "1" && (
+        <button
+          onClick={signInWithGitHub}
+          className="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700"
+        >
+          Continue with GitHub
+        </button>
+      )}
 
       <button
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}

@@ -117,7 +117,8 @@ restorable: PASS
               <li>Unlimited repositories</li>
               <li>Any schedule</li>
               <li>All alert channels + stale detection</li>
-              <li>12-month history &amp; confidence reports</li>
+              <li>12-month run history</li>
+              <li>Monthly confidence reports (coming soon)</li>
             </ul>
           </div>
         </div>
