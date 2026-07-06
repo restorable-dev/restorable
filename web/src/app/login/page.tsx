@@ -12,14 +12,16 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     const supabase = createClient();
-    const { error } =
+    const { data, error } =
       mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
@@ -30,6 +32,12 @@ export default function LoginPage() {
     }
     if (mode === "signup") {
       track("signup");
+      // Email confirmation enabled: no session until the link is clicked.
+      if (!data.session) {
+        setNotice("Check your email for a confirmation link, then sign in here.");
+        setMode("signin");
+        return;
+      }
     }
     router.push("/dashboard");
     router.refresh();
@@ -77,6 +85,7 @@ export default function LoginPage() {
           />
         </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {notice && <p className="text-sm text-green-700 dark:text-green-400">{notice}</p>}
         <button
           type="submit"
           disabled={busy}
