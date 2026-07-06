@@ -13,3 +13,5 @@ feature they document (see CLAUDE.md engineering conventions).
 - [Cloud dashboard](cloud.md) — registering agents, what data leaves your
   machine (and what never does)
 - [Alerts](alerts.md) — channels, incident dedup, staleness windows
+- [Plans & billing](billing.md) — free vs Pro, how limits behave, graceful
+  downgrades
