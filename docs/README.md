@@ -3,6 +3,7 @@
 User-facing documentation source. Pages are added in the same phase as the
 feature they document (see CLAUDE.md engineering conventions).
 
+- [Quickstart](quickstart.md) — install → first green test in under 10 minutes
 - [Agent configuration](agent-configuration.md) — `agent.yaml` reference,
   disk-space pre-flight, read-only guarantee
 - [Commands](commands.md) — `restorable test`, `restorable run`, exit codes
