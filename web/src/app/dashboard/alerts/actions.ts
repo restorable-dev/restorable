@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { channelTypeSchema, parseChannelConfig, type ChannelType } from "@/lib/alerts/config";
 import { sendToChannel } from "@/lib/alerts/send";
+import { getLimits } from "@/lib/billing/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 // All actions use the user's own client: RLS scopes every read and write.
@@ -38,6 +39,19 @@ export async function createAlertChannel(
     config = parseChannelConfig(type, raw);
   } catch {
     return { error: "invalid channel settings — check the fields and try again" };
+  }
+
+  // Plan gate: channel count is a Pro entitlement, enforced server-side.
+  const limits = await getLimits(supabase, user.id);
+  if (limits.maxAlertChannels != null) {
+    const { count } = await supabase
+      .from("alert_channels")
+      .select("id", { count: "exact", head: true });
+    if ((count ?? 0) >= limits.maxAlertChannels) {
+      return {
+        error: `plan limit: the free plan includes ${limits.maxAlertChannels} alert channel — upgrade to Pro for all channels`,
+      };
+    }
   }
 
   const { error } = await supabase.from("alert_channels").insert({

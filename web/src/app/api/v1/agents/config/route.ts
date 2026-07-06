@@ -1,10 +1,11 @@
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
+import { getPlan, PLAN_LIMITS } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/v1/agents/config
-// Polled by agents (~5 min). Returns the desired schedule and plan
-// entitlements. Phase 3 ships the shape; server-driven scheduling and plan
-// gating land in Phases 4-5.
+// Polled by agents (~5 min). Returns the desired schedule and the plan's
+// entitlements, live from the subscription — an upgrade reflects here on the
+// next poll, no redeploy. Server-driven scheduling is post-launch.
 export async function GET(request: Request) {
   const admin = createAdminClient();
   const agent = await authenticateAgent(admin, request);
@@ -16,9 +17,15 @@ export async function GET(request: Request) {
     .update({ last_seen: new Date().toISOString() })
     .eq("id", agent.id);
 
+  const plan = await getPlan(admin, agent.user_id);
+  const limits = PLAN_LIMITS[plan];
   return Response.json({
     schedule: null,
-    plan: "free",
-    entitlements: { max_repos: 1, min_interval: "monthly", max_alert_channels: 1 },
+    plan,
+    entitlements: {
+      max_repos: limits.maxRepos,
+      min_interval: limits.minInterval,
+      max_alert_channels: limits.maxAlertChannels,
+    },
   });
 }

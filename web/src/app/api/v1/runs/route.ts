@@ -1,6 +1,7 @@
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
 import { runRequestSchema, type RunRequest } from "@/lib/api/schemas";
 import { openIncident, resolveIncident } from "@/lib/alerts/incidents";
+import { getLimits } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // firstProblem summarizes what went wrong for the alert body.
@@ -38,29 +39,44 @@ export async function POST(request: Request) {
   }
   const run = parsed.data;
 
-  // First run for this fingerprint creates the repo; later runs keep the
-  // user's chosen label (upsert ignores duplicates instead of overwriting).
-  const { error: upsertError } = await admin
-    .from("repos")
-    .upsert(
-      {
-        user_id: agent.user_id,
-        fingerprint: run.repo_fingerprint,
-        label: run.repo_label,
-      },
-      { onConflict: "user_id,fingerprint", ignoreDuplicates: true },
-    );
-  if (upsertError) {
-    return Response.json({ error: "could not record repo" }, { status: 500 });
-  }
-  const { data: repo, error: repoError } = await admin
+  // First run for this fingerprint creates the repo — gated by the plan's
+  // repo limit. Existing repos always keep working: limits cap growth, they
+  // never break what's already reporting.
+  let { data: repo } = await admin
     .from("repos")
     .select("id")
     .eq("user_id", agent.user_id)
     .eq("fingerprint", run.repo_fingerprint)
-    .single();
-  if (repoError || !repo) {
-    return Response.json({ error: "could not record repo" }, { status: 500 });
+    .maybeSingle();
+  if (!repo) {
+    const limits = await getLimits(admin, agent.user_id);
+    if (limits.maxRepos != null) {
+      const { count } = await admin
+        .from("repos")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", agent.user_id);
+      if ((count ?? 0) >= limits.maxRepos) {
+        return Response.json(
+          {
+            error: `plan limit: the free plan monitors ${limits.maxRepos} repository — upgrade to Pro for unlimited repos`,
+          },
+          { status: 403 },
+        );
+      }
+    }
+    const { data: created, error: insertError } = await admin
+      .from("repos")
+      .insert({
+        user_id: agent.user_id,
+        fingerprint: run.repo_fingerprint,
+        label: run.repo_label,
+      })
+      .select("id")
+      .single();
+    if (insertError || !created) {
+      return Response.json({ error: "could not record repo" }, { status: 500 });
+    }
+    repo = created;
   }
 
   const { data: inserted, error: runError } = await admin
