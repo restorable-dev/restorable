@@ -37,7 +37,7 @@ before it receives real alerts.
 - **Discord** — create a webhook in your server's channel settings and paste
   its URL.
 - **ntfy** — pick a topic; self-hosted servers are supported (https only).
-- **Email** — delivered via Resend.
+- **Email** — delivered via AWS SES.
 
 ## Cron
 

@@ -1,6 +1,34 @@
 import "server-only";
 
+import { SendEmailCommand, SESv2Client } from "@aws-sdk/client-sesv2";
+
 import { parseChannelConfig, type AlertChannel } from "./config";
+
+// Email goes out through AWS SES. Custom env names (SES_*) because Vercel
+// reserves the standard AWS_* variables for its own runtime.
+async function sendEmailViaSES(to: string, subject: string, body: string): Promise<void> {
+  const accessKeyId = process.env.SES_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.SES_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error("Email is not configured on this deployment (SES_ACCESS_KEY_ID)");
+  }
+  const client = new SESv2Client({
+    region: process.env.SES_REGION ?? "us-east-1",
+    credentials: { accessKeyId, secretAccessKey },
+  });
+  await client.send(
+    new SendEmailCommand({
+      FromEmailAddress: process.env.ALERT_EMAIL_FROM ?? "Restorable <alerts@restorable.dev>",
+      Destination: { ToAddresses: [to] },
+      Content: {
+        Simple: {
+          Subject: { Data: subject, Charset: "UTF-8" },
+          Body: { Text: { Data: body, Charset: "UTF-8" } },
+        },
+      },
+    }),
+  );
+}
 
 export interface AlertMessage {
   title: string;
@@ -73,22 +101,7 @@ export async function sendToChannel(
     }
     case "email": {
       const { to } = parseChannelConfig("email", channel.config);
-      const apiKey = process.env.RESEND_API_KEY;
-      if (!apiKey) {
-        throw new Error("Email is not configured on this deployment (RESEND_API_KEY)");
-      }
-      await post("https://api.resend.com/emails", {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          from: process.env.ALERT_EMAIL_FROM ?? "Restorable <alerts@restorable.dev>",
-          to: [to],
-          subject: `${emoji[msg.level]} ${msg.title}`,
-          text: msg.body,
-        }),
-      });
+      await sendEmailViaSES(to, `${emoji[msg.level]} ${msg.title}`, msg.body);
       return;
     }
   }
