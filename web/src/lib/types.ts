@@ -20,7 +20,7 @@ export interface CheckResult {
 export interface TestRun {
   id: string;
   repo_id: string;
-  agent_id: string;
+  agent_id: string | null;
   snapshot_id: string | null;
   status: RunStatus;
   error: string | null;
