@@ -1,3 +1,5 @@
+import { waitUntil } from "@vercel/functions";
+
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
 import { resolveIncident } from "@/lib/alerts/incidents";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,14 +22,16 @@ export async function POST(request: Request) {
   if (error) {
     return Response.json({ error: "heartbeat failed" }, { status: 500 });
   }
-  await resolveIncident(
-    admin,
-    { userId: agent.user_id, kind: "agent_silent", subjectId: agent.id },
-    {
-      level: "recovery",
-      title: `Agent is back online — ${updated?.name ?? "agent"}`,
-      body: "The agent is checking in again.",
-    },
+  waitUntil(
+    resolveIncident(
+      admin,
+      { userId: agent.user_id, kind: "agent_silent", subjectId: agent.id },
+      {
+        level: "recovery",
+        title: `Agent is back online — ${updated?.name ?? "agent"}`,
+        body: "The agent is checking in again.",
+      },
+    ).catch((err) => console.error("deferred recovery dispatch failed:", err)),
   );
   return new Response(null, { status: 204 });
 }
