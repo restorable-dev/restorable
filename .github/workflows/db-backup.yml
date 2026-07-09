@@ -1,0 +1,49 @@
+name: Nightly control-plane DB backup
+
+# The product tests other people's backups; its own database gets the same
+# discipline. pg_dump of the hosted Supabase project, gzipped, into a
+# private encrypted S3 bucket (30-day lifecycle).
+#
+# Required secrets:
+#   SUPABASE_DB_URL                postgres connection string (pooler, port 5432)
+#   BACKUP_AWS_ACCESS_KEY_ID       scoped writer (s3:PutObject on the bucket only)
+#   BACKUP_AWS_SECRET_ACCESS_KEY
+on:
+  schedule:
+    - cron: "23 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        run: |
+          if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set — backups are NOT running"
+            exit 1
+          fi
+
+      - name: Install postgres 17 client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump and upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y%m%d-%H%M%S)"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --no-owner --no-privileges --schema=public --schema=auth \
+            | gzip > "restorable-$STAMP.sql.gz"
+          test -s "restorable-$STAMP.sql.gz"
+          aws s3 cp "restorable-$STAMP.sql.gz" \
+            "s3://restorable-db-backups-939701010518/backups/restorable-$STAMP.sql.gz" \
+            --sse AES256
+          echo "backup uploaded: restorable-$STAMP.sql.gz ($(du -h restorable-$STAMP.sql.gz | cut -f1))"
