@@ -1,3 +1,5 @@
+import { waitUntil } from "@vercel/functions";
+
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
 import { runRequestSchema, type RunRequest } from "@/lib/api/schemas";
 import { openIncident, resolveIncident } from "@/lib/alerts/incidents";
@@ -22,6 +24,22 @@ export async function POST(request: Request) {
   const agent = await authenticateAgent(admin, request);
   if (!agent) {
     return unauthorized();
+  }
+
+  // Ingestion cap per agent: an hourly ceiling far above any sane test
+  // cadence, so a buggy or hostile agent can't fill the database.
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentRuns } = await admin
+    .from("test_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("agent_id", agent.id)
+    .gte("created_at", hourAgo);
+  const runsPerHourLimit = Number(process.env.RUNS_PER_HOUR_LIMIT ?? 60);
+  if ((recentRuns ?? 0) >= runsPerHourLimit) {
+    return Response.json(
+      { error: `rate limited: this agent submitted ${recentRuns} runs in the last hour` },
+      { status: 429 },
+    );
   }
 
   let body: unknown;
@@ -106,46 +124,53 @@ export async function POST(request: Request) {
 
   // Alerting. One incident per repo: first failure alerts, repeats are
   // suppressed by the incident index, the next pass sends a recovery notice.
+  // Dispatch runs AFTER the response (waitUntil): a slow Discord webhook must
+  // not stall — or time out — the agent's submission.
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const runLink = appUrl ? `\n${appUrl}/dashboard/runs/${inserted.id}` : "";
   const incident = { userId: agent.user_id, kind: "run_failure" as const, subjectId: repo.id };
-  if (run.status === "pass") {
-    await resolveIncident(admin, incident, {
-      level: "recovery",
-      title: `Restore tests passing again — ${run.repo_label}`,
-      body: `Snapshot ${run.snapshot_id?.slice(0, 8) ?? "?"} verified.${runLink}`,
-    });
-    // A fresh successful test also clears any staleness incident.
-    await resolveIncident(
-      admin,
-      { ...incident, kind: "stale_repo" },
-      {
-        level: "recovery",
-        title: `Backup tests running again — ${run.repo_label}`,
-        body: `A successful restore test just completed.${runLink}`,
-      },
-    );
-  } else {
-    await openIncident(
-      admin,
-      incident,
-      {
-        level: "failure",
-        title: `Restore test failed — ${run.repo_label}`,
-        body: `${firstProblem(run)}${runLink}`,
-      },
-      inserted.id,
-    );
-  }
-  // Any submission proves the agent is alive.
-  await resolveIncident(
-    admin,
-    { userId: agent.user_id, kind: "agent_silent", subjectId: agent.id },
-    {
-      level: "recovery",
-      title: "Agent is back online",
-      body: "The agent just reported a test run.",
-    },
+  const runId = inserted.id;
+  waitUntil(
+    (async () => {
+      if (run.status === "pass") {
+        await resolveIncident(admin, incident, {
+          level: "recovery",
+          title: `Restore tests passing again — ${run.repo_label}`,
+          body: `Snapshot ${run.snapshot_id?.slice(0, 8) ?? "?"} verified.${runLink}`,
+        });
+        // A fresh successful test also clears any staleness incident.
+        await resolveIncident(
+          admin,
+          { ...incident, kind: "stale_repo" },
+          {
+            level: "recovery",
+            title: `Backup tests running again — ${run.repo_label}`,
+            body: `A successful restore test just completed.${runLink}`,
+          },
+        );
+      } else {
+        await openIncident(
+          admin,
+          incident,
+          {
+            level: "failure",
+            title: `Restore test failed — ${run.repo_label}`,
+            body: `${firstProblem(run)}${runLink}`,
+          },
+          runId,
+        );
+      }
+      // Any submission proves the agent is alive.
+      await resolveIncident(
+        admin,
+        { userId: agent.user_id, kind: "agent_silent", subjectId: agent.id },
+        {
+          level: "recovery",
+          title: "Agent is back online",
+          body: "The agent just reported a test run.",
+        },
+      );
+    })().catch((err) => console.error("deferred alert dispatch failed:", err)),
   );
 
   return Response.json({ run_id: inserted.id }, { status: 201 });

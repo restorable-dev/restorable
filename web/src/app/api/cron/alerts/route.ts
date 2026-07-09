@@ -1,6 +1,41 @@
 import { openIncident, resolveIncident } from "@/lib/alerts/incidents";
 import { isStale, parsePgInterval, staleAfterMs } from "@/lib/alerts/staleness";
+import { PLAN_LIMITS } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// pruneHistory enforces the plan history windows (free 3mo, pro 12mo) —
+// which also keeps the database from growing without bound.
+async function pruneHistory(admin: SupabaseClient): Promise<number> {
+  const monthsAgo = (n: number) =>
+    new Date(Date.now() - n * 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  let pruned = 0;
+  // Everyone: nothing older than the pro window survives.
+  const { count: oldRows } = await admin
+    .from("test_runs")
+    .delete({ count: "exact" })
+    .lt("created_at", monthsAgo(PLAN_LIMITS.pro.historyMonths));
+  pruned += oldRows ?? 0;
+
+  // Free users: prune past the free window.
+  const { data: proRows } = await admin
+    .from("subscriptions")
+    .select("user_id")
+    .eq("plan", "pro")
+    .in("status", ["active", "trialing", "past_due"]);
+  const proIds = (proRows ?? []).map((r) => r.user_id);
+  let query = admin
+    .from("test_runs")
+    .delete({ count: "exact" })
+    .lt("created_at", monthsAgo(PLAN_LIMITS.free.historyMonths));
+  if (proIds.length > 0) {
+    query = query.not("user_id", "in", `(${proIds.join(",")})`);
+  }
+  const { count: freeRows } = await query;
+  pruned += freeRows ?? 0;
+  return pruned;
+}
 
 // GET /api/cron/alerts — hourly (vercel.json). Detects the meta-failure:
 // backups whose tests have gone quiet, and agents that stopped checking in.
@@ -26,7 +61,15 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const now = new Date();
-  const summary = { stale_opened: 0, stale_resolved: 0, silent_opened: 0, silent_resolved: 0 };
+  const summary = {
+    stale_opened: 0,
+    stale_resolved: 0,
+    silent_opened: 0,
+    silent_resolved: 0,
+    runs_pruned: 0,
+  };
+
+  summary.runs_pruned = await pruneHistory(admin);
 
   // ── stale repos ───────────────────────────────────────────────────────────
   const { data: repos } = await admin
