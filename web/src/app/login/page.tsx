@@ -43,6 +43,23 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  async function forgotPassword() {
+    if (!email) {
+      setError("enter your email above first, then click forgot password");
+      return;
+    }
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setNotice("If that address has an account, a reset link is on its way.");
+  }
+
   async function signInWithGitHub() {
     setError(null);
     const supabase = createClient();
@@ -104,12 +121,19 @@ export default function LoginPage() {
         </button>
       )}
 
-      <button
-        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-        className="text-sm text-neutral-500 underline"
-      >
-        {mode === "signin" ? "No account? Sign up" : "Have an account? Sign in"}
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          className="text-sm text-neutral-500 underline"
+        >
+          {mode === "signin" ? "No account? Sign up" : "Have an account? Sign in"}
+        </button>
+        {mode === "signin" && (
+          <button onClick={forgotPassword} className="text-sm text-neutral-500 underline">
+            Forgot password?
+          </button>
+        )}
+      </div>
     </main>
   );
 }
