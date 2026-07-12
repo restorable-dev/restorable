@@ -1,5 +1,23 @@
 # Commands
 
+## `restorable init`
+
+Bootstraps your setup by inspecting the backup. It connects to the
+repository, lists the latest snapshot, recognizes SQLite databases, SQL
+dumps, and apps (Nextcloud, Vaultwarden, Immich), and writes a working
+`agent.yaml` plus a starter recipe asserting the critical files — then offers
+to run the first test.
+
+```sh
+restorable init --repo /srv/backups/restic       # interactive
+restorable init --repo /srv/backups/restic --yes # accept defaults, run the test
+```
+
+Flags: `--repo` (or `$RESTIC_REPOSITORY`), `--password-env`, `--out`
+(directory to write into), `--force` (overwrite existing files), `--yes`
+(non-interactive). The generated recipe is yours — edit it to assert whatever
+a good restore must contain.
+
 ## `restorable test`
 
 Runs one full restore-verification cycle and exits:

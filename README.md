@@ -44,14 +44,19 @@ curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/inst
 (Or grab a binary from [releases](https://github.com/restorable-dev/restorable/releases) —
 static, no dependencies.)
 
-**2. Configure** — create `agent.yaml`:
+**2. Set it up** — `restorable init` inspects your backup and writes the config for you:
 
-```yaml
-repo: /srv/backups/restic        # any restic backend: local, s3:…, b2:…, sftp:…
-recipes: [my-app.yaml]
+```sh
+export RESTIC_PASSWORD=…   # or point password_env at your own variable
+restorable init --repo /srv/backups/restic
 ```
 
-and a recipe, `my-app.yaml`, asserting what your backup must contain:
+It recognizes SQLite databases, SQL dumps, and apps like Nextcloud,
+Vaultwarden, and Immich, then writes an `agent.yaml` and a starter recipe
+asserting their critical files — and offers to run the first test on the spot.
+Review the recipe (it's yours to edit), and you're done.
+
+Prefer to hand-write it? A recipe is just declarative YAML:
 
 ```yaml
 name: my-app
@@ -67,7 +72,6 @@ checks:
 **3. Test:**
 
 ```sh
-export RESTIC_PASSWORD=…   # or password_env: MY_VAR in agent.yaml
 restorable test
 ```
 

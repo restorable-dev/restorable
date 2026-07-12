@@ -12,7 +12,25 @@ curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/inst
 Static binary, no dependencies, no root needed (falls back to `~/.local/bin`).
 Verify: `restorable version`.
 
-## 2. Tell it about your backup (3 min)
+## 2. Let it set itself up (30 seconds)
+
+The fastest path — `restorable init` connects to your repository, looks at
+what the latest snapshot contains, recognizes common apps, and writes a
+working `agent.yaml` and starter recipe for you:
+
+```sh
+export RESTIC_PASSWORD=your-repo-password
+restorable init --repo /srv/backups/restic
+```
+
+It detects SQLite databases, SQL dumps, and apps like Nextcloud, Vaultwarden,
+and Immich, asserts their critical files, and offers to run the first test
+immediately. Review the generated recipe, tune it to taste, done. If that
+covers you, **skip to step 4**.
+
+Prefer to write it by hand? Continue below.
+
+## 2b. Or configure it manually (3 min)
 
 Create `agent.yaml`:
 
