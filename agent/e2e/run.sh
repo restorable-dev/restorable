@@ -87,6 +87,15 @@ assert len(doc["checks"]) == 1, doc
 PY
 assert_sandbox_empty
 
+log "case 1c: 'restorable init' generates a working config + recipe and passes"
+INIT_DIR="$WORK/init-out"
+mkdir -p "$INIT_DIR"
+( cd "$INIT_DIR" && RESTIC_REPOSITORY="$GOOD" "$BIN" init --yes )
+[ -f "$INIT_DIR/agent.yaml" ] || fail "init did not write agent.yaml"
+ls "$INIT_DIR"/*.yaml | grep -qv agent.yaml || fail "init did not write a recipe"
+# The generated config must itself pass a real test.
+expect_exit 0 "$BIN" test --config "$INIT_DIR/agent.yaml"
+
 log "case 2: broken recipe assertion must fail (exit 1)"
 cat > "$WORK/recipe-broken.yaml" <<EOF
 name: e2e-broken
