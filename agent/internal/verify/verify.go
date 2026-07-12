@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dabelle/restorable/agent/internal/config"
-	"github.com/dabelle/restorable/agent/internal/recipes"
-	"github.com/dabelle/restorable/agent/internal/report"
-	"github.com/dabelle/restorable/agent/internal/restic"
-	"github.com/dabelle/restorable/agent/internal/sandbox"
+	"github.com/restorable-dev/restorable/agent/internal/config"
+	"github.com/restorable-dev/restorable/agent/internal/recipes"
+	"github.com/restorable-dev/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/restic"
+	"github.com/restorable-dev/restorable/agent/internal/sandbox"
 )
 
 // sizeHeadroom is how much larger than the snapshot's recorded size the

@@ -6,7 +6,7 @@ You need: a Linux or macOS machine that can reach your restic repository,
 ## 1. Install the agent (1 min)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dabelle/restorable/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/install.sh | sh
 ```
 
 Static binary, no dependencies, no root needed (falls back to `~/.local/bin`).

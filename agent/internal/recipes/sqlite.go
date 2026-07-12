@@ -11,7 +11,7 @@ import (
 	// Pure-Go sqlite driver (no CGO), registered as "sqlite".
 	_ "modernc.org/sqlite"
 
-	"github.com/dabelle/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 )
 
 // SQLiteCheck opens a restored SQLite database read-only and runs

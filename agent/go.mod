@@ -1,4 +1,4 @@
-module github.com/dabelle/restorable/agent
+module github.com/restorable-dev/restorable/agent
 
 go 1.25.0
 

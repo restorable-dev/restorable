@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/dabelle/restorable/agent/internal/config"
-	"github.com/dabelle/restorable/agent/internal/verify"
+	"github.com/restorable-dev/restorable/agent/internal/config"
+	"github.com/restorable-dev/restorable/agent/internal/verify"
 )
 
 // exitError carries a specific process exit code without printing anything:

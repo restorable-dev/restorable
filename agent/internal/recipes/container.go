@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/dabelle/restorable/agent/internal/sandbox"
+	"github.com/restorable-dev/restorable/agent/internal/sandbox"
 )
 
 // ContainerRunner is the slice of the Docker sandbox the database and app

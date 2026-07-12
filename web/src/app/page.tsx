@@ -24,11 +24,11 @@ export default function Home() {
           disposable sandbox, verifies the data really works, destroys the
           sandbox, and tells you the result.
         </p>
-        <CopyInstall command="curl -fsSL https://raw.githubusercontent.com/dabelle/restorable/main/install.sh | sh" />
+        <CopyInstall command="curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/install.sh | sh" />
         <div className="flex items-center gap-4">
           <SignupCta />
           <a
-            href="https://github.com/dabelle/restorable"
+            href="https://github.com/restorable-dev/restorable"
             className="text-sm text-neutral-600 underline dark:text-neutral-400"
           >
             Source on GitHub (MIT)
@@ -130,7 +130,7 @@ restorable: PASS
       <footer className="flex items-center justify-between border-t border-neutral-200 py-10 text-sm text-neutral-500 dark:border-neutral-800">
         <span>© {new Date().getFullYear()} ClevTech Solutions · MIT licensed</span>
         <div className="flex gap-4">
-          <a href="https://github.com/dabelle/restorable" className="underline">GitHub</a>
+          <a href="https://github.com/restorable-dev/restorable" className="underline">GitHub</a>
           <Link href="/login" className="underline">Sign in</Link>
         </div>
       </footer>

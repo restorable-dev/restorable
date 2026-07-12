@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dabelle/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 )
 
 // heartbeatInterval keeps registered daemon agents visibly alive between

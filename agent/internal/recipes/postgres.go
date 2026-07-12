@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dabelle/restorable/agent/internal/report"
-	"github.com/dabelle/restorable/agent/internal/sandbox"
+	"github.com/restorable-dev/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/sandbox"
 )
 
 const (

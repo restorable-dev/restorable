@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dabelle/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 )
 
 // makeSQLiteDB creates a real database file with a little data.

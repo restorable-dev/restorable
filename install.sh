@@ -1,10 +1,10 @@
 #!/bin/sh
-# Restorable installer — https://github.com/dabelle/restorable
+# Restorable installer — https://github.com/restorable-dev/restorable
 #
 # Downloads the latest release binary for this platform, verifies its
 # checksum, and installs it. Safe to re-run to upgrade.
 #
-#   curl -fsSL https://raw.githubusercontent.com/dabelle/restorable/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/install.sh | sh
 #
 # Options (environment variables):
 #   RESTORABLE_VERSION   version tag to install (default: latest release)
@@ -12,7 +12,7 @@
 #                        falls back to ~/.local/bin without root)
 set -eu
 
-REPO="dabelle/restorable"
+REPO="restorable-dev/restorable"
 BASE_URL="${RESTORABLE_BASE_URL:-https://github.com/$REPO/releases/download}"
 
 say()  { printf 'restorable install: %s\n' "$*"; }

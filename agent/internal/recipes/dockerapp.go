@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dabelle/restorable/agent/internal/report"
-	"github.com/dabelle/restorable/agent/internal/sandbox"
+	"github.com/restorable-dev/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/sandbox"
 )
 
 // DockerAppCheck boots the real application image against the restored data

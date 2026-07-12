@@ -35,9 +35,9 @@ jobs:
           COMMIT="${GITHUB_SHA::7}"
           DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           LDFLAGS="-s -w \
-            -X github.com/dabelle/restorable/agent/cmd.version=${VERSION} \
-            -X github.com/dabelle/restorable/agent/cmd.commit=${COMMIT} \
-            -X github.com/dabelle/restorable/agent/cmd.date=${DATE}"
+            -X github.com/restorable-dev/restorable/agent/cmd.version=${VERSION} \
+            -X github.com/restorable-dev/restorable/agent/cmd.commit=${COMMIT} \
+            -X github.com/restorable-dev/restorable/agent/cmd.date=${DATE}"
           for platform in linux/amd64 linux/arm64 darwin/arm64; do
             GOOS="${platform%/*}"
             GOARCH="${platform#*/}"

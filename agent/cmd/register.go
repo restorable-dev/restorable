@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dabelle/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 )
 
 func newRegisterCmd() *cobra.Command {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dabelle/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 )
 
 // appTarget wires a fake runner whose MappedPort points at a local HTTP

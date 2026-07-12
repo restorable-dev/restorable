@@ -38,10 +38,10 @@ restic repository.
 **1. Install:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dabelle/restorable/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/install.sh | sh
 ```
 
-(Or grab a binary from [releases](https://github.com/dabelle/restorable/releases) —
+(Or grab a binary from [releases](https://github.com/restorable-dev/restorable/releases) —
 static, no dependencies.)
 
 **2. Configure** — create `agent.yaml`:
@@ -125,7 +125,7 @@ forever without it.
 ## Building from source
 
 ```sh
-git clone https://github.com/dabelle/restorable && cd restorable/agent
+git clone https://github.com/restorable-dev/restorable && cd restorable/agent
 go build -o restorable .
 ```
 

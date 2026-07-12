@@ -8,9 +8,9 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
-	"github.com/dabelle/restorable/agent/internal/config"
-	"github.com/dabelle/restorable/agent/internal/report"
-	"github.com/dabelle/restorable/agent/internal/verify"
+	"github.com/restorable-dev/restorable/agent/internal/config"
+	"github.com/restorable-dev/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/verify"
 )
 
 func newRunCmd() *cobra.Command {

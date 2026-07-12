@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dabelle/restorable/agent/cmd"
+	"github.com/restorable-dev/restorable/agent/cmd"
 )
 
 // Exit codes: 0 = pass, 1 = verification failed, 2 = could not test
