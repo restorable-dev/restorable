@@ -81,6 +81,9 @@ func newInitCmd() *cobra.Command {
 				cmd.Printf("  • %s\n", f)
 			}
 
+			if err := os.MkdirAll(outDir, 0o755); err != nil {
+				return fmt.Errorf("create output directory %s: %w", outDir, err)
+			}
 			recipeName := sug.RecipeName + ".yaml"
 			recipePath := filepath.Join(outDir, recipeName)
 			cfgPath := filepath.Join(outDir, "agent.yaml")
