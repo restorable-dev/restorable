@@ -28,6 +28,7 @@ const (
 	subRestore   subcommand = "restore"
 	subCheck     subcommand = "check"
 	subDump      subcommand = "dump"
+	subCat       subcommand = "cat" // read-only: `cat config` for the repo ID
 )
 
 // ErrNoSnapshots is returned when the repository contains no snapshots.
@@ -101,6 +102,25 @@ func (r *Runner) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out.String()), nil
+}
+
+// RepoID returns restic's canonical repository ID (from `cat config`). This
+// uniquely identifies the repository regardless of how its location is
+// spelled (relative vs absolute path, trailing slash, http vs https), so it
+// is a far better fingerprint than the repo string. Empty (no error) if the
+// restic version doesn't expose an id.
+func (r *Runner) RepoID(ctx context.Context) (string, error) {
+	var out bytes.Buffer
+	if err := r.run(ctx, subCat, &out, "config"); err != nil {
+		return "", err
+	}
+	var cfg struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &cfg); err != nil {
+		return "", fmt.Errorf("parse restic config: %w", err)
+	}
+	return cfg.ID, nil
 }
 
 // LatestSnapshot returns the most recent snapshot in the repository.

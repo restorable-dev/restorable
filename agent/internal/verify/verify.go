@@ -73,6 +73,13 @@ func Run(ctx context.Context, opts Options) *report.RunResult {
 		return fail("%v", err)
 	}
 
+	// Fingerprint the repo by its canonical restic ID so the same repo is
+	// never counted twice for being addressed two ways (relative vs absolute
+	// path, trailing slash). Best-effort: falls back to the repo string.
+	if id, idErr := runner.RepoID(ctx); idErr == nil && id != "" {
+		res.RepoFingerprint = report.FingerprintID(id)
+	}
+
 	logf("looking up latest snapshot in %s", report.Scrub(cfg.Repo))
 	snap, err := runner.LatestSnapshot(ctx)
 	if err != nil {

@@ -36,14 +36,17 @@ type CheckResult struct {
 
 // RunResult is the outcome of one full restore-verification run.
 type RunResult struct {
-	AgentVersion string        `json:"agent_version"`
-	Repo         string        `json:"repo"`
-	SnapshotID   string        `json:"snapshot_id,omitempty"`
-	Status       Status        `json:"status"`
-	Error        string        `json:"error,omitempty"`
-	StartedAt    time.Time     `json:"started_at"`
-	FinishedAt   time.Time     `json:"finished_at"`
-	Checks       []CheckResult `json:"checks"`
+	AgentVersion string `json:"agent_version"`
+	Repo         string `json:"repo"`
+	// RepoFingerprint, when set, is the stable per-repository fingerprint
+	// (from restic's repo ID). Empty falls back to hashing the repo string.
+	RepoFingerprint string        `json:"-"`
+	SnapshotID      string        `json:"snapshot_id,omitempty"`
+	Status          Status        `json:"status"`
+	Error           string        `json:"error,omitempty"`
+	StartedAt       time.Time     `json:"started_at"`
+	FinishedAt      time.Time     `json:"finished_at"`
+	Checks          []CheckResult `json:"checks"`
 }
 
 // credRe matches the userinfo section of an authority: everything up to the

@@ -75,9 +75,18 @@ func SaveCredentials(path string, c *Credentials) error {
 }
 
 // Fingerprint identifies a repository to the control plane without revealing
-// its location: sha256 of the credential-scrubbed repo string.
+// its location: sha256 of the credential-scrubbed repo string. Used as a
+// fallback when the repository's canonical ID isn't available.
 func Fingerprint(repo string) string {
 	sum := sha256.Sum256([]byte(Scrub(repo)))
+	return hex.EncodeToString(sum[:])
+}
+
+// FingerprintID derives a repo fingerprint from restic's canonical repository
+// ID. This is stable across how the repo location is spelled (relative vs
+// absolute path, trailing slash), so the same repo is never counted twice.
+func FingerprintID(repoID string) string {
+	sum := sha256.Sum256([]byte("restic-repo-id:" + repoID))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -122,8 +131,12 @@ func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
 		ck.Message = RedactForTransport(ck.Message)
 		checks[i] = ck
 	}
+	fingerprint := r.RepoFingerprint
+	if fingerprint == "" {
+		fingerprint = Fingerprint(r.Repo) // fallback for old restic without a repo ID
+	}
 	payload := runPayload{
-		RepoFingerprint: Fingerprint(r.Repo),
+		RepoFingerprint: fingerprint,
 		RepoLabel:       r.Repo, // already scrubbed at result construction
 		SnapshotID:      r.SnapshotID,
 		Status:          r.Status,

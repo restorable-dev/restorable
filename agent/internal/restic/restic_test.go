@@ -86,6 +86,22 @@ func TestRunnerArgConstruction(t *testing.T) {
 	}
 }
 
+func TestRepoID(t *testing.T) {
+	r, argsFile := fakeRestic(t, `{"version":2,"id":"f4fbe368ebda1cb0deadbeef","chunker_polynomial":"3d"}`, "", 0)
+	id, err := r.RepoID(context.Background())
+	if err != nil {
+		t.Fatalf("RepoID() error: %v", err)
+	}
+	if id != "f4fbe368ebda1cb0deadbeef" {
+		t.Errorf("RepoID() = %q", id)
+	}
+	args := recordedArgs(t, argsFile)
+	want := []string{"cat", "--repo", "/repo", "config"}
+	if strings.Join(args, " ") != strings.Join(want, " ") {
+		t.Errorf("args = %v, want %v", args, want)
+	}
+}
+
 func TestLatestSnapshot(t *testing.T) {
 	t.Run("parses snapshot", func(t *testing.T) {
 		r, argsFile := fakeRestic(t, snapshotsJSON, "", 0)
