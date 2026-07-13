@@ -1,3 +1,4 @@
+import { getLimits } from "@/lib/billing/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 import { ChannelsManager, type ChannelRow } from "./channels-manager";
@@ -15,11 +16,18 @@ interface AlertRow {
 
 export default async function AlertsPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: channels } = await supabase
     .from("alert_channels")
     .select("id, type, config, verified, created_at")
     .order("created_at", { ascending: true })
     .returns<ChannelRow[]>();
+  const limits = user ? await getLimits(supabase, user.id) : null;
+  const atChannelLimit =
+    limits?.maxAlertChannels != null &&
+    (channels?.length ?? 0) >= limits.maxAlertChannels;
   const { data: alerts } = await supabase
     .from("alerts")
     .select("id, kind, status, message, fired_at, resolved_at")
@@ -35,7 +43,7 @@ export default async function AlertsPage() {
         goes silent — and when things recover.
       </p>
 
-      <ChannelsManager channels={channels ?? []} />
+      <ChannelsManager channels={channels ?? []} atLimit={atChannelLimit} />
 
       <h2 className="mb-3 mt-10 font-medium">Recent alerts</h2>
       {!alerts?.length ? (

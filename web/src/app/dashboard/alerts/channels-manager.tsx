@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -41,7 +42,13 @@ function describe(channel: ChannelRow): string {
   }
 }
 
-export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
+export function ChannelsManager({
+  channels,
+  atLimit,
+}: {
+  channels: ChannelRow[];
+  atLimit: boolean;
+}) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState<ChannelType>("telegram");
@@ -135,7 +142,7 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
     <section>
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Channels</h2>
-        {!adding && (
+        {!adding && !atLimit && (
           <button
             onClick={() => setAdding(true)}
             className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white dark:bg-white dark:text-neutral-900"
@@ -144,6 +151,20 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
           </button>
         )}
       </div>
+
+      {atLimit && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <span className="text-neutral-600 dark:text-neutral-400">
+            You&apos;re on the free plan&apos;s one-channel limit. Upgrade to Pro for all channels.
+          </span>
+          <Link
+            href="/dashboard/billing"
+            className="shrink-0 rounded bg-neutral-900 px-3 py-1.5 text-white dark:bg-white dark:text-neutral-900"
+          >
+            Upgrade
+          </Link>
+        </div>
+      )}
 
       {notice && <p className="mt-2 text-sm text-green-700 dark:text-green-400">{notice}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
