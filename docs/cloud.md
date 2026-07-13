@@ -1,8 +1,9 @@
 # Connecting an agent to the cloud dashboard
 
 The agent is fully useful standalone — cloud connectivity is additive. What
-it adds: run history across all your repos, stale-backup detection, alerting,
-and monthly confidence reports (alerting and reports arrive in later phases).
+it adds today: run history across all your repos, stale-backup detection, and
+alerting (Telegram, Discord, ntfy, email). Monthly confidence reports are
+planned but not yet available.
 
 ## What leaves your machine (and what never does)
 

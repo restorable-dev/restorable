@@ -112,9 +112,10 @@ and `sqlite` don't.
 
 The hosted dashboard adds run history across repos, alerting on failure,
 stale-backup detection (fires when your *testing* silently dies — the
-meta-failure), and monthly confidence reports. Free tier: 1 repo, monthly
-tests, 1 alert channel. Pro ($8/mo or $80/yr): unlimited. The agent works
-forever without it.
+meta-failure). Free tier: 1 repo, monthly tests, 1 alert channel. Pro
+($8/mo or $80/yr): unlimited repos, any schedule, all channels, 12-month
+history (monthly confidence reports coming soon). The agent works forever
+without it.
 
 ## Docs
 
