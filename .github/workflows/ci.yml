@@ -108,6 +108,7 @@ jobs:
             TELEGRAM_WEBHOOK_SECRET=local-dev-tg-webhook \
             TELEGRAM_API_BASE=http://127.0.0.1:8181 \
             CRON_SECRET=local-dev-cron-secret \
+            BETA_MODE=1 \
             STRIPE_SECRET_KEY=sk_test_dummy_signature_only \
             npm run start &
           for i in $(seq 1 30); do

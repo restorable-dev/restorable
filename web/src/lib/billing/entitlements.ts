@@ -48,5 +48,15 @@ export async function getPlan(client: SupabaseClient, userId: string): Promise<P
 }
 
 export async function getLimits(client: SupabaseClient, userId: string): Promise<PlanLimits> {
+  // Free-for-all beta: everyone gets Pro limits, no payment. Flip BETA_MODE
+  // off (and re-apply the DB channel-limit policy) when paid plans go live.
+  if (isBeta()) {
+    return PLAN_LIMITS.pro;
+  }
   return PLAN_LIMITS[await getPlan(client, userId)];
+}
+
+// isBeta reports whether the hosted service is running its free-for-all beta.
+export function isBeta(): boolean {
+  return process.env.BETA_MODE === "1";
 }

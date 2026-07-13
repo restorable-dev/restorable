@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# End-to-end acceptance test for Phase 5 (SPEC.md): billing + plan gating.
+# End-to-end acceptance test: free-for-all beta + Stripe billing lifecycle.
 #
+# The service runs a free-for-all beta (BETA_MODE=1): plan limits are lifted.
 # Proves, with Stripe webhook payloads signed by the SDK's own test helper
 # (the handler's signature verification runs its real code path):
-#   1. free-plan limits are enforced server-side: 2nd repo rejected (403),
-#      2nd alert channel rejected at the DATABASE (RLS policy)
-#   2. an upgrade webhook unlocks limits immediately — no redeploy: the same
-#      running server then accepts the 2nd repo and 2nd channel, and the
-#      agent config endpoint reports pro entitlements
+#   1. beta unlocks everything: multiple repos and alert channels are allowed,
+#      and the agent config endpoint reports beta + unlimited entitlements
+#   2. the Stripe webhook lifecycle still records subscription state correctly
+#      (for when paid plans go live): checkout+update → pro/active
 #   3. webhook replay is idempotent (acknowledged, no reprocessing)
-#   4. cancellation downgrades gracefully: limits re-applied, all data
-#      retained, existing repos keep accepting runs
+#   4. bad signature is rejected
+#   5. cancellation records free/canceled and retains all data
 #
-# Requirements: local supabase, web running (WITH .env.local stripe config),
+# Requirements: local supabase, web running with BETA_MODE=1 + stripe config,
 # go, restic, node, python3.
 set -euo pipefail
 
@@ -72,25 +72,32 @@ make_repo 1
 make_repo 2
 make_repo 3
 
-log "case 1a: free plan accepts the first repo"
+# The service runs a free-for-all beta (BETA_MODE=1): plan limits are lifted,
+# so these cases verify the beta unlock, then the Stripe webhook lifecycle that
+# will matter once paid plans go live.
+
+log "case 1a: beta unlocks multiple repos (no limit)"
 "$BIN" test --config "$WORK/agent1.yaml" --credentials "$CREDS" > /dev/null
-
-log "case 1b: free plan rejects a second repo (server-side 403)"
-OUT="$("$BIN" test --config "$WORK/agent2.yaml" --credentials "$CREDS" 2>&1 >/dev/null)" || true
-echo "$OUT" | grep -q "plan limit" || fail "expected plan-limit rejection, got: $OUT"
+"$BIN" test --config "$WORK/agent2.yaml" --credentials "$CREDS" > /dev/null || fail "2nd repo rejected in beta"
+"$BIN" test --config "$WORK/agent3.yaml" --credentials "$CREDS" > /dev/null || fail "3rd repo rejected in beta"
 COUNT="$(curl -sf "$SUPABASE_URL/rest/v1/repos?select=id" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
-[ "$COUNT" = "1" ] || fail "repo count = $COUNT, want 1"
+[ "$COUNT" = "3" ] || fail "repo count = $COUNT, want 3 (beta = unlimited)"
 
-log "case 1c: free plan caps alert channels at 1 (database-level)"
-curl -sf -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
-  -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
-  -d '{"user_id":"'$USER_ID'","type":"ntfy","config":{"topic":"e2e-one"}}' || fail "first channel should be allowed"
-CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
-  -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
-  -d '{"user_id":"'$USER_ID'","type":"ntfy","config":{"topic":"e2e-two"}}')"
-[ "$CODE" = "403" ] || fail "second free channel returned $CODE, want 403 (RLS)"
+log "case 1b: beta unlocks multiple alert channels"
+for t in one two three; do
+  curl -sf -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
+    -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
+    -d '{"user_id":"'$USER_ID'","type":"ntfy","config":{"topic":"e2e-'$t'"}}' \
+    || fail "channel $t rejected in beta"
+done
 
-log "case 2: upgrade via signed stripe webhooks unlocks limits (no redeploy)"
+log "case 1c: agent config reports beta + unlimited entitlements"
+API_KEY="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["api_key"])' "$CREDS")"
+curl -sf "$BASE_URL/api/v1/agents/config" -H "Authorization: Bearer $API_KEY" > "$WORK/config.json"
+grep -q '"plan":"beta"' "$WORK/config.json" || fail "config plan not beta: $(cat "$WORK/config.json")"
+grep -q '"max_repos":null' "$WORK/config.json" || fail "config max_repos not unlimited: $(cat "$WORK/config.json")"
+
+log "case 2: stripe checkout webhook records pro subscription (billing plumbing)"
 CUS="cus_e2e_$(date +%s)"
 SUB="sub_e2e_$(date +%s)"
 PERIOD_END=$(python3 -c 'import time; print(int(time.time()) + 30*24*3600)')
@@ -105,15 +112,6 @@ EOF
 
 PLAN="$(curl -sf "$SUPABASE_URL/rest/v1/subscriptions?select=plan,status" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" | python3 -c 'import json,sys; d=json.load(sys.stdin)[0]; print(d["plan"], d["status"])')"
 [ "$PLAN" = "pro active" ] || fail "subscription row = $PLAN, want 'pro active'"
-
-# The same running server must now accept what it just rejected.
-"$BIN" test --config "$WORK/agent2.yaml" --credentials "$CREDS" > /dev/null || fail "second repo still rejected after upgrade"
-curl -sf -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
-  -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
-  -d '{"user_id":"'$USER_ID'","type":"ntfy","config":{"topic":"e2e-two"}}' || fail "second channel still rejected after upgrade"
-API_KEY="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["api_key"])' "$CREDS")"
-curl -sf "$BASE_URL/api/v1/agents/config" -H "Authorization: Bearer $API_KEY" > "$WORK/config.json"
-grep -q '"plan":"pro"' "$WORK/config.json" || fail "config endpoint does not report pro: $(cat "$WORK/config.json")"
 
 log "case 3: webhook replay is idempotent"
 CODE="$(deliver_event checkout)"
@@ -136,18 +134,10 @@ EOF
 PLAN="$(curl -sf "$SUPABASE_URL/rest/v1/subscriptions?select=plan,status" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" | python3 -c 'import json,sys; d=json.load(sys.stdin)[0]; print(d["plan"], d["status"])')"
 [ "$PLAN" = "free canceled" ] || fail "after cancel: $PLAN, want 'free canceled'"
 
-# Data retained: both repos and their runs are still there.
+# Data retained on downgrade: repos and runs survive (nothing deleted).
 COUNT="$(curl -sf "$SUPABASE_URL/rest/v1/repos?select=id" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
-[ "$COUNT" = "2" ] || fail "repos lost on downgrade: $COUNT"
-# Limits re-applied: a third repo is rejected again…
-OUT="$("$BIN" test --config "$WORK/agent3.yaml" --credentials "$CREDS" 2>&1 >/dev/null)" || true
-echo "$OUT" | grep -q "plan limit" || fail "third repo accepted after downgrade: $OUT"
-# …but existing repos keep working (grace: nothing already reporting breaks).
+[ "$COUNT" = "3" ] || fail "repos lost on downgrade: $COUNT"
+# Existing repos keep working (in beta, still unlimited).
 "$BIN" test --config "$WORK/agent2.yaml" --credentials "$CREDS" > /dev/null || fail "existing repo broken by downgrade"
-# Channel cap re-applied (2 channels exist ≥ limit 1 → deny new).
-CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
-  -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
-  -d '{"user_id":"'$USER_ID'","type":"ntfy","config":{"topic":"e2e-three"}}')"
-[ "$CODE" = "403" ] || fail "third channel after downgrade returned $CODE, want 403"
 
 log "all billing e2e cases passed"

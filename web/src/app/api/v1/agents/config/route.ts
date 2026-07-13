@@ -1,5 +1,5 @@
 import { authenticateAgent, unauthorized } from "@/lib/api/agent-auth";
-import { getPlan, PLAN_LIMITS } from "@/lib/billing/entitlements";
+import { getLimits, getPlan, isBeta } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/v1/agents/config
@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     .update({ last_seen: new Date().toISOString() })
     .eq("id", agent.id);
 
-  const plan = await getPlan(admin, agent.user_id);
-  const limits = PLAN_LIMITS[plan];
+  const limits = await getLimits(admin, agent.user_id);
+  const plan = isBeta() ? "beta" : await getPlan(admin, agent.user_id);
   return Response.json({
     schedule: null,
     plan,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MilestoneTracker } from "@/components/milestone-tracker";
 import { createClient } from "@/lib/supabase/server";
 
 import { signOut } from "./actions";
@@ -14,8 +15,24 @@ export default async function DashboardLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Activation-funnel milestones (see MilestoneTracker): does this user have
+  // an agent connected, and has any run been reported yet?
+  const [{ count: agentCount }, { count: runCount }] = user
+    ? await Promise.all([
+        supabase.from("agents").select("id", { count: "exact", head: true }),
+        supabase.from("test_runs").select("id", { count: "exact", head: true }),
+      ])
+    : [{ count: 0 }, { count: 0 }];
+
   return (
     <div className="mx-auto max-w-4xl p-6">
+      {user && (
+        <MilestoneTracker
+          userId={user.id}
+          hasAgent={(agentCount ?? 0) > 0}
+          hasRun={(runCount ?? 0) > 0}
+        />
+      )}
       <header className="mb-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-neutral-200 pb-4 dark:border-neutral-800">
         <nav className="flex items-center gap-5 text-sm">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
