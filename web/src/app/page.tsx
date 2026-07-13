@@ -131,6 +131,8 @@ restorable: PASS
         <span>© {new Date().getFullYear()} ClevTech Solutions · MIT licensed</span>
         <div className="flex gap-4">
           <a href="https://github.com/restorable-dev/restorable" className="underline">GitHub</a>
+          <Link href="/privacy" className="underline">Privacy</Link>
+          <Link href="/terms" className="underline">Terms</Link>
           <Link href="/login" className="underline">Sign in</Link>
         </div>
       </footer>
