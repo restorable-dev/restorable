@@ -23,3 +23,7 @@ next-env.d.ts
 .idea/
 .vscode/
 .vercel
+
+# Internal docs — kept local, never published
+/SPEC.md
+/CLAUDE.md
