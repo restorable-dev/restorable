@@ -13,6 +13,7 @@ import (
 
 	"github.com/restorable-dev/restorable/agent/internal/config"
 	"github.com/restorable-dev/restorable/agent/internal/detect"
+	"github.com/restorable-dev/restorable/agent/internal/report"
 	"github.com/restorable-dev/restorable/agent/internal/restic"
 )
 
@@ -61,7 +62,7 @@ func newInitCmd() *cobra.Command {
 			}
 			ctx := cmd.Context()
 
-			cmd.Printf("Connecting to %s …\n", repo)
+			cmd.Printf("Connecting to %s …\n", report.Scrub(repo))
 			snap, err := runner.LatestSnapshot(ctx)
 			if err != nil {
 				return fmt.Errorf("could not read the repository: %w", err)
@@ -105,7 +106,10 @@ sandbox:
 			if err := os.WriteFile(recipePath, []byte(sug.RecipeYAML), 0o644); err != nil {
 				return fmt.Errorf("write recipe: %w", err)
 			}
-			if err := os.WriteFile(cfgPath, []byte(agentYAML), 0o644); err != nil {
+			// 0o600: agent.yaml can embed a credential-bearing repo string
+			// (rest:https://user:pass@host), so keep it owner-only like the
+			// credentials file.
+			if err := os.WriteFile(cfgPath, []byte(agentYAML), 0o600); err != nil {
 				return fmt.Errorf("write agent.yaml: %w", err)
 			}
 			cmd.Printf("\nWrote %s and %s.\n", cfgPath, recipePath)

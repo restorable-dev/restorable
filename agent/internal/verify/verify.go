@@ -137,6 +137,7 @@ func Run(ctx context.Context, opts Options) *report.RunResult {
 		Roots:      roots,
 		SnapshotID: snap.ID,
 		Dumper:     runner,
+		TempDir:    sb.Dir(), // scratch (e.g. decompressed dumps) on the space-checked volume
 		Docker: func(ctx context.Context) (recipes.ContainerRunner, error) {
 			if docker != nil {
 				return docker, nil

@@ -92,7 +92,13 @@ func waitFor(ctx context.Context, runner ContainerRunner, id string, timeout tim
 // Size is required because docker's copy-in uses tar, which needs lengths up
 // front. For gzip we decompress to a temp file first; dumps in scope for a
 // homelab fit on the disk that already holds the whole restored snapshot.
-func openDump(path string) (r io.ReadCloser, size int64, custom bool, err error) {
+//
+// tmpDir places the decompressed temp file on the space-checked sandbox
+// volume (not /tmp, which may be a different, smaller filesystem). maxBytes
+// caps decompression so a gzip bomb or oversized dump can't fill the disk.
+const maxDumpBytes = 20 << 30 // 20 GiB — generous for homelab DBs, bomb guard
+
+func openDump(path, tmpDir string) (r io.ReadCloser, size int64, custom bool, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, 0, false, err
@@ -117,16 +123,21 @@ func openDump(path string) (r io.ReadCloser, size int64, custom bool, err error)
 		if err != nil {
 			return nil, 0, false, fmt.Errorf("open gzip dump: %w", err)
 		}
-		tmp, err := os.CreateTemp("", "restorable-dump-")
+		tmp, err := os.CreateTemp(tmpDir, "restorable-dump-")
 		if err != nil {
 			return nil, 0, false, err
 		}
 		// Unlink immediately: the fd keeps it alive, nothing can leak.
 		_ = os.Remove(tmp.Name())
-		size, err = io.Copy(tmp, gz)
+		// Cap decompression: +1 byte over the limit trips the guard.
+		size, err = io.Copy(tmp, io.LimitReader(gz, maxDumpBytes+1))
 		if err != nil {
 			_ = tmp.Close()
 			return nil, 0, false, fmt.Errorf("decompress dump: %w", err)
+		}
+		if size > maxDumpBytes {
+			_ = tmp.Close()
+			return nil, 0, false, fmt.Errorf("decompressed dump exceeds %d bytes limit", int64(maxDumpBytes))
 		}
 		if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 			_ = tmp.Close()

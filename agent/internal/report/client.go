@@ -113,9 +113,14 @@ type runPayload struct {
 // machine: the repo is reduced to a fingerprint plus its scrubbed label, and
 // every string in the result was scrubbed when the result was built.
 func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
-	checks := r.Checks
-	if checks == nil {
-		checks = []CheckResult{}
+	// Redact every check message before it leaves the machine: check messages
+	// are the only field that can embed raw output from the user's restored
+	// databases. Local stdout already showed the full text; the cloud gets a
+	// scrubbed, DB-detail-stripped, length-bounded version.
+	checks := make([]CheckResult, len(r.Checks))
+	for i, ck := range r.Checks {
+		ck.Message = RedactForTransport(ck.Message)
+		checks[i] = ck
 	}
 	payload := runPayload{
 		RepoFingerprint: Fingerprint(r.Repo),

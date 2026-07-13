@@ -58,7 +58,7 @@ func TestDockerAppCheck(t *testing.T) {
 			t.Errorf("published %q, want 8080/tcp", runner.specs[0].PublishPort)
 		}
 		// The restored root must be bind-mounted at mount.at.
-		if len(runner.specs[0].Binds) != 1 || !strings.HasSuffix(runner.specs[0].Binds[0], ":/var/www/html") {
+		if len(runner.specs[0].Binds) != 1 || !strings.HasSuffix(runner.specs[0].Binds[0], ":/var/www/html:ro") {
 			t.Errorf("binds = %v", runner.specs[0].Binds)
 		}
 	})

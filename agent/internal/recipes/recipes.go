@@ -41,6 +41,10 @@ type Target struct {
 	Roots      []Root
 	SnapshotID string
 	Dumper     Dumper
+	// TempDir is where checks may write scratch files (e.g. decompressed
+	// dumps). Set to the sandbox directory so scratch lands on the same
+	// disk-space-checked volume as the restore. Empty means the OS temp dir.
+	TempDir string
 	// Docker lazily provides the container runner. It returns a
 	// user-facing error when Docker is unavailable, so checks that need
 	// containers degrade gracefully while everything else keeps working.
@@ -165,7 +169,7 @@ func (r *Recipe) Run(ctx context.Context, t *Target) []report.CheckResult {
 	results := make([]report.CheckResult, 0, len(r.Checks))
 	for _, c := range r.Checks {
 		start := time.Now()
-		status, msg := c.Run(ctx, t)
+		status, msg := runCheck(ctx, c, t)
 		results = append(results, report.CheckResult{
 			Recipe:     r.Name,
 			Type:       c.TypeName(),
@@ -175,6 +179,19 @@ func (r *Recipe) Run(ctx context.Context, t *Target) []report.CheckResult {
 		})
 	}
 	return results
+}
+
+// runCheck runs one check, converting a panic (malformed data, a bug in a
+// check, an SDK misbehaving on odd input) into an error result instead of
+// taking down the process — the daemon must survive one bad snapshot.
+func runCheck(ctx context.Context, c Check, t *Target) (status report.Status, msg string) {
+	defer func() {
+		if r := recover(); r != nil {
+			status = report.StatusError
+			msg = fmt.Sprintf("check panicked: %v", r)
+		}
+	}()
+	return c.Run(ctx, t)
 }
 
 // joinIssues folds multiple failure messages into one, capped for sanity.

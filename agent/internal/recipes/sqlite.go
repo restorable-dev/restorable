@@ -29,7 +29,7 @@ func (c *SQLiteCheck) validate() error {
 	if c.Path == "" {
 		return errors.New("needs a path")
 	}
-	return nil
+	return validateRelPath(c.Path)
 }
 
 // Run implements Check. Any way the database is unusable — missing, not a

@@ -48,14 +48,8 @@ func (f *FilesCheck) validate() error {
 		return errors.New("checksum_sample cannot be negative")
 	}
 	for _, req := range f.Require {
-		p := strings.TrimSuffix(req.Path, "/")
-		switch {
-		case p == "":
-			return errors.New("require entry has an empty path")
-		case filepath.IsAbs(p):
-			return fmt.Errorf("path %q must be relative to the snapshot root", req.Path)
-		case p == ".." || strings.HasPrefix(p, "../") || strings.Contains(p, "/../"):
-			return fmt.Errorf("path %q must not escape the snapshot root", req.Path)
+		if err := validateRelPath(req.Path); err != nil {
+			return err
 		}
 		if req.MinFiles < 0 {
 			return fmt.Errorf("path %q: min_files cannot be negative", req.Path)
@@ -112,15 +106,48 @@ func (f *FilesCheck) Run(ctx context.Context, t *Target) (report.Status, string)
 	return report.StatusPass, msg
 }
 
-// resolve finds rel under one of the restored roots.
+// validateRelPath rejects any recipe path that isn't a plain path relative to
+// the snapshot root. Recipes are shared/community artifacts, so this is a
+// trust boundary: without it a recipe could read or mount arbitrary host
+// files by escaping the sandbox with "../". Every check type that resolves a
+// user-supplied path must call this in its validate().
+func validateRelPath(p string) error {
+	trimmed := strings.TrimSuffix(p, "/")
+	switch {
+	case trimmed == "":
+		return errors.New("path is empty")
+	case filepath.IsAbs(trimmed):
+		return fmt.Errorf("path %q must be relative to the snapshot root", p)
+	case trimmed == ".." || strings.HasPrefix(trimmed, "../") || strings.Contains(trimmed, "/../"):
+		return fmt.Errorf("path %q must not escape the snapshot root", p)
+	}
+	return nil
+}
+
+// resolve finds rel under one of the restored roots, enforcing containment:
+// even if a malformed path slips past validation, the resolved location must
+// stay inside a root directory (defense in depth against traversal).
 func resolve(roots []Root, rel string) (string, bool) {
 	for _, root := range roots {
 		abs := filepath.Join(root.Dir, rel)
+		if !withinRoot(root.Dir, abs) {
+			continue
+		}
 		if _, err := os.Stat(abs); err == nil {
 			return abs, true
 		}
 	}
 	return "", false
+}
+
+// withinRoot reports whether abs is inside dir (after cleaning), blocking
+// "../" escapes that survived earlier validation.
+func withinRoot(dir, abs string) bool {
+	rel, err := filepath.Rel(dir, abs)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // countFiles counts regular files under dir recursively. A file path counts

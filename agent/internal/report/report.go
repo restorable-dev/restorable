@@ -46,13 +46,37 @@ type RunResult struct {
 	Checks       []CheckResult `json:"checks"`
 }
 
-// credRe matches the userinfo section of URLs (user:password@ or user@).
-var credRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^@/\s]+@`)
+// credRe matches the userinfo section of an authority: everything up to the
+// LAST '@' before the authority ends (start of path, whitespace, or string
+// end). Greedy up to '@' so passwords containing '/' or '@' (which restic
+// permits in rest:/s3: URLs) are fully masked, not partially.
+var credRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s]+@`)
 
 // Scrub masks credentials embedded in URLs anywhere in s. Repo strings and
-// error strings must pass through Scrub before entering a RunResult.
+// error strings must pass through Scrub before entering a RunResult. The
+// regex is whitespace-bounded, so it can only ever over-mask within a token
+// (safe), never leak.
 func Scrub(s string) string {
 	return credRe.ReplaceAllString(s, "${1}***@")
+}
+
+// pgDetailRe matches Postgres/MySQL DETAIL/HINT/CONTEXT lines, which routinely
+// echo actual row values (emails, names) from the user's backup.
+var pgDetailRe = regexp.MustCompile(`(?im)^\s*(DETAIL|HINT|CONTEXT|Key \()[^\n]*$`)
+
+// RedactForTransport prepares a check message to leave the machine. Check
+// messages are the one field that can embed raw command output from the
+// user's restored databases (Postgres error DETAIL lines echo row values), so
+// anything sent to the control plane is scrubbed of URL credentials, stripped
+// of DB detail lines, and length-bounded. Local stdout keeps the full text.
+func RedactForTransport(msg string) string {
+	msg = pgDetailRe.ReplaceAllString(msg, "[redacted]")
+	msg = Scrub(msg)
+	const max = 500
+	if len(msg) > max {
+		msg = msg[:max] + "…"
+	}
+	return msg
 }
 
 // ExitCode maps the run status to a cron-friendly process exit code:

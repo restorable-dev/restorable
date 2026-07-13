@@ -76,6 +76,9 @@ func (c *PostgresCheck) validate() error {
 	if c.Dump == "" {
 		return errors.New("needs a dump path")
 	}
+	if err := validateRelPath(c.Dump); err != nil {
+		return err
+	}
 	return validateTables(c.Tables)
 }
 
@@ -121,7 +124,7 @@ func (c *PostgresCheck) Run(ctx context.Context, t *Target) (report.Status, stri
 		return report.StatusError, fmt.Sprintf("postgres container (%s): %v", image, err)
 	}
 
-	dump, size, custom, err := openDump(dumpPath)
+	dump, size, custom, err := openDump(dumpPath, t.TempDir)
 	if err != nil {
 		return report.StatusFail, fmt.Sprintf("open dump %q: %v", c.Dump, err)
 	}

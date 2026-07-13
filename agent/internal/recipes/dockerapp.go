@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/restorable-dev/restorable/agent/internal/report"
 	"github.com/restorable-dev/restorable/agent/internal/sandbox"
@@ -56,6 +57,13 @@ func (c *DockerAppCheck) validate() error {
 	}
 	if !strings.HasPrefix(c.Mount.At, "/") {
 		return fmt.Errorf("mount.at %q must be an absolute container path", c.Mount.At)
+	}
+	// mount.restored is bind-mounted into a container, so it must not escape
+	// the snapshot root ("." means the root itself).
+	if r := strings.TrimSuffix(c.Mount.Restored, "/"); r != "" && r != "." {
+		if err := validateRelPath(c.Mount.Restored); err != nil {
+			return fmt.Errorf("mount.restored: %w", err)
+		}
 	}
 	if c.Ready.HTTP == "" {
 		return errors.New("needs ready.http (URL to probe)")
@@ -107,9 +115,11 @@ func (c *DockerAppCheck) Run(ctx context.Context, t *Target) (report.Status, str
 	sort.Strings(env)
 
 	id, err := runner.StartContainer(ctx, sandbox.ContainerSpec{
-		Image:       c.Image,
-		Env:         env,
-		Binds:       []string{hostDir + ":" + c.Mount.At},
+		Image: c.Image,
+		Env:   env,
+		// Read-only: verifying a restore must never let the throwaway app
+		// write back into the restored tree (or, via a bad path, the host).
+		Binds:       []string{hostDir + ":" + c.Mount.At + ":ro"},
 		PublishPort: containerPort + "/tcp",
 	})
 	if err != nil {
@@ -122,7 +132,9 @@ func (c *DockerAppCheck) Run(ctx context.Context, t *Target) (report.Status, str
 	}
 	target := fmt.Sprintf("http://127.0.0.1:%s%s", hostPort, probeURL.RequestURI())
 
-	client := &http.Client{}
+	// Per-request timeout so a restored app that accepts the connection then
+	// stalls can't block the probe past the readiness deadline.
+	client := &http.Client{Timeout: 15 * time.Second}
 	err = waitFor(ctx, runner, id, c.Ready.Timeout.orDefault(defaultReadyTimeout), func() (bool, string) {
 		req, rerr := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		if rerr != nil {

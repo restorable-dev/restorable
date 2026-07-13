@@ -39,6 +39,9 @@ func (c *MySQLCheck) validate() error {
 	if c.Dump == "" {
 		return errors.New("needs a dump path")
 	}
+	if err := validateRelPath(c.Dump); err != nil {
+		return err
+	}
 	return validateTables(c.Tables)
 }
 
@@ -83,7 +86,7 @@ func (c *MySQLCheck) Run(ctx context.Context, t *Target) (report.Status, string)
 		return report.StatusError, fmt.Sprintf("mysql container (%s): %v", image, err)
 	}
 
-	dump, size, _, err := openDump(dumpPath)
+	dump, size, _, err := openDump(dumpPath, t.TempDir)
 	if err != nil {
 		return report.StatusFail, fmt.Sprintf("open dump %q: %v", c.Dump, err)
 	}

@@ -58,6 +58,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			c := cron.New(cron.WithChain(
+				cron.Recover(cron.PrintfLogger(logger)),
 				cron.SkipIfStillRunning(cron.PrintfLogger(logger)),
 			))
 			id, err := c.AddFunc(cfg.Schedule, doRun)
