@@ -1,15 +1,10 @@
 "use client";
 
-// Plausible custom events, safe to call whether or not analytics is loaded
-// (the script is env-gated; local dev and self-hosters simply no-op).
-declare global {
-  interface Window {
-    plausible?: (event: string, options?: { props?: Record<string, string> }) => void;
-  }
-}
+import { track as vercelTrack } from "@vercel/analytics";
 
+// Thin wrapper over Vercel Web Analytics custom events, so call sites stay
+// analytics-provider-agnostic. Safe to call anywhere; no-ops if analytics
+// isn't loaded (local dev, or before the script initializes).
 export function track(event: string, props?: Record<string, string>) {
-  if (typeof window !== "undefined" && typeof window.plausible === "function") {
-    window.plausible(event, props ? { props } : undefined);
-  }
+  vercelTrack(event, props);
 }

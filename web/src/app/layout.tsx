@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -19,8 +19,6 @@ export const metadata: Metadata = {
     "Restorable restore-tests your backups on a schedule: restore the latest snapshot into a disposable sandbox, verify the data works, destroy the sandbox, report the result.",
 };
 
-const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,13 +31,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        {plausibleDomain && (
-          <Script
-            defer
-            data-domain={plausibleDomain}
-            src="https://plausible.io/js/script.js"
-          />
-        )}
+        <Analytics />
       </body>
     </html>
   );
