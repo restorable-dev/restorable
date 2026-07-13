@@ -125,7 +125,7 @@ export default function LoginPage() {
         </button>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <button
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="text-sm text-neutral-500 underline"
