@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <header className="mb-8 flex items-center justify-between border-b border-neutral-200 pb-4 dark:border-neutral-800">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-neutral-200 pb-4 dark:border-neutral-800">
         <nav className="flex items-center gap-5 text-sm">
           <Link href="/dashboard" className="font-semibold">
             Restorable

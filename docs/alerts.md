@@ -32,8 +32,10 @@ instead, agent-silence alerts can be disabled per agent
 Configure on **Dashboard → Alerts**. Every channel must pass a **Test**
 before it receives real alerts.
 
-- **Telegram** — message the Restorable bot once, click *detect my chat ID*
-  (or paste it), then Test.
+- **Telegram** — click *Connect with Telegram*: it opens the Restorable bot,
+  you press Start, and your chat is linked automatically. No bot setup, no
+  chat IDs. (You don't create a bot — everyone shares the one Restorable bot,
+  and your alerts go only to your chat.)
 - **Discord** — create a webhook in your server's channel settings and paste
   its URL.
 - **ntfy** — pick a topic; self-hosted servers are supported (https only).

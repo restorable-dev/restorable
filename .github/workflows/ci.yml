@@ -101,6 +101,8 @@ jobs:
           npm run build
           PORT=3100 \
             TELEGRAM_BOT_TOKEN=e2e-token \
+            TELEGRAM_BOT_USERNAME=restorable_alerts_dev_bot \
+            TELEGRAM_WEBHOOK_SECRET=local-dev-tg-webhook \
             TELEGRAM_API_BASE=http://127.0.0.1:8181 \
             CRON_SECRET=local-dev-cron-secret \
             STRIPE_SECRET_KEY=sk_test_dummy_signature_only \
@@ -125,6 +127,12 @@ jobs:
         run: |
           export SUPABASE_ANON_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
           web/e2e/billing.sh
+
+      - name: Run telegram-connect e2e
+        run: |
+          export SUPABASE_ANON_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
+          export SUPABASE_SERVICE_ROLE_KEY="$(cd web && supabase status -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["SERVICE_ROLE_KEY"])')"
+          web/e2e/telegram-connect.sh
 
   web:
     name: Web (Next.js)

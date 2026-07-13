@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { ChannelType } from "@/lib/alerts/config";
 
 import {
   createAlertChannel,
   deleteAlertChannel,
-  detectTelegramChats,
+  pollTelegramConnect,
+  startTelegramConnect,
   testAlertChannel,
 } from "./actions";
 
@@ -40,12 +42,21 @@ function describe(channel: ChannelRow): string {
 }
 
 export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState<ChannelType>("telegram");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
+  const [tgUrl, setTgUrl] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   function submit(formData: FormData) {
     startTransition(async () => {
@@ -56,8 +67,47 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
         return;
       }
       setAdding(false);
-      setChats([]);
       setNotice("Channel added — press Test to verify it before alerts flow.");
+    });
+  }
+
+  // Telegram: mint a one-time deep link, open it, then poll until the bot
+  // webhook reports the user's chat_id and the channel is created.
+  function connectTelegram() {
+    startTransition(async () => {
+      setError(null);
+      setNotice(null);
+      const result = await startTelegramConnect();
+      if (result.error || !result.url || !result.token) {
+        setError(result.error ?? "could not start Telegram connect");
+        return;
+      }
+      setTgUrl(result.url);
+      setConnecting(true);
+      window.open(result.url, "_blank", "noopener");
+      const token = result.token;
+      const started = Date.now();
+      pollRef.current = setInterval(async () => {
+        if (Date.now() - started > 3 * 60_000) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setConnecting(false);
+          setError("Timed out waiting for Telegram. Tap the link and press Start, then try again.");
+          return;
+        }
+        const poll = await pollTelegramConnect(token);
+        if (poll.error) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setConnecting(false);
+          setError(poll.error);
+        } else if (poll.connected) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setConnecting(false);
+          setAdding(false);
+          setTgUrl(null);
+          setNotice("Telegram connected — you'll get alerts there.");
+          router.refresh();
+        }
+      }, 2000);
     });
   }
 
@@ -80,17 +130,6 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
     });
   }
 
-  function findChats() {
-    startTransition(async () => {
-      setError(null);
-      const result = await detectTelegramChats();
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      setChats(result.chats ?? []);
-    });
-  }
 
   return (
     <section>
@@ -131,26 +170,29 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
           </label>
 
           {type === "telegram" && (
-            <>
-              <label className="flex flex-col gap-1">
-                Chat ID
-                <input
-                  name="chat_id"
-                  required
-                  placeholder="123456789"
-                  className="rounded border border-neutral-300 px-2 py-1.5 font-mono dark:border-neutral-700 dark:bg-neutral-900"
-                />
-              </label>
-              <div className="text-xs text-neutral-500">
-                Message the bot on Telegram first, then{" "}
-                <button type="button" onClick={findChats} className="underline">
-                  detect my chat ID
-                </button>
-                {chats.length > 0 && (
-                  <span> — found: {chats.map((c) => `${c.name} (${c.id})`).join(", ")}</span>
-                )}
-              </div>
-            </>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                Connect your Telegram in one tap — no chat IDs, no bot setup.
+                We open our bot; press <strong>Start</strong> and you&apos;re done.
+              </p>
+              <button
+                type="button"
+                onClick={connectTelegram}
+                disabled={pending || connecting}
+                className="w-fit rounded bg-[#229ED9] px-3 py-1.5 text-white disabled:opacity-50"
+              >
+                {connecting ? "Waiting for Telegram…" : "Connect with Telegram"}
+              </button>
+              {tgUrl && connecting && (
+                <p className="text-xs text-neutral-500">
+                  Didn&apos;t open?{" "}
+                  <a href={tgUrl} target="_blank" rel="noopener" className="underline">
+                    Tap here
+                  </a>{" "}
+                  and press Start in Telegram.
+                </p>
+              )}
+            </div>
           )}
           {type === "discord" && (
             <label className="flex flex-col gap-1">
@@ -197,18 +239,23 @@ export function ChannelsManager({ channels }: { channels: ChannelRow[] }) {
           )}
 
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className="rounded bg-neutral-900 px-3 py-1.5 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-            >
-              Save
-            </button>
+            {type !== "telegram" && (
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded bg-neutral-900 px-3 py-1.5 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+              >
+                Save
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 setAdding(false);
                 setError(null);
+                setConnecting(false);
+                setTgUrl(null);
+                if (pollRef.current) clearInterval(pollRef.current);
               }}
               className="rounded border border-neutral-300 px-3 py-1.5 dark:border-neutral-700"
             >

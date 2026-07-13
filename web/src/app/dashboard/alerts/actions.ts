@@ -101,10 +101,13 @@ export async function testAlertChannel(id: string): Promise<{ error?: string }> 
   return {};
 }
 
-// Lists chats that recently messaged the bot, so users can pick their
-// chat_id instead of hunting for it.
-export async function detectTelegramChats(): Promise<{
-  chats?: { id: string; name: string }[];
+// Telegram connect via one-time deep link. Mints a token tied to THIS user,
+// returns a t.me/<bot>?start=<token> link. The user taps it, the bot webhook
+// stamps their chat_id onto this row — privately, per user. Replaces the old
+// getUpdates lookup, which surfaced every user's chat across the shared bot.
+export async function startTelegramConnect(): Promise<{
+  url?: string;
+  token?: string;
   error?: string;
 }> {
   const supabase = await createClient();
@@ -114,34 +117,77 @@ export async function detectTelegramChats(): Promise<{
   if (!user) {
     return { error: "not signed in" };
   }
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) {
+  const botUser = process.env.TELEGRAM_BOT_USERNAME;
+  if (!botUser) {
     return { error: "Telegram is not configured on this deployment" };
   }
-  const base = process.env.TELEGRAM_API_BASE ?? "https://api.telegram.org";
-  try {
-    const resp = await fetch(`${base}/bot${token}/getUpdates`, {
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
-    });
-    if (!resp.ok) {
-      return { error: `Telegram API error (HTTP ${resp.status})` };
-    }
-    const data = (await resp.json()) as {
-      result?: { message?: { chat?: { id: number; first_name?: string; title?: string; username?: string } } }[];
-    };
-    const byId = new Map<string, string>();
-    for (const update of data.result ?? []) {
-      const chat = update.message?.chat;
-      if (chat) {
-        byId.set(String(chat.id), chat.title ?? chat.username ?? chat.first_name ?? "chat");
-      }
-    }
-    if (byId.size === 0) {
-      return { error: "no messages found — send the bot any message first, then retry" };
-    }
-    return { chats: [...byId].map(([id, name]) => ({ id, name })) };
-  } catch {
-    return { error: "could not reach the Telegram API" };
+  const token = generateConnectToken();
+  const { error } = await supabase.from("telegram_links").insert({
+    token,
+    user_id: user.id,
+  });
+  if (error) {
+    return { error: "could not start Telegram connect" };
   }
+  return { url: `https://t.me/${botUser}?start=${token}`, token };
+}
+
+// Polls a pending connect: once the webhook has stamped a chat_id, creates the
+// verified Telegram channel and consumes the link. Called by the UI on a timer
+// after the user opens the deep link.
+export async function pollTelegramConnect(
+  token: string,
+): Promise<{ connected?: boolean; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "not signed in" };
+  }
+  const { data: link } = await supabase
+    .from("telegram_links")
+    .select("chat_id, consumed_at")
+    .eq("token", token)
+    .maybeSingle();
+  if (!link || !link.chat_id) {
+    return { connected: false };
+  }
+  if (link.consumed_at) {
+    return { connected: true };
+  }
+
+  const limits = await getLimits(supabase, user.id);
+  if (limits.maxAlertChannels != null) {
+    const { count } = await supabase
+      .from("alert_channels")
+      .select("id", { count: "exact", head: true });
+    if ((count ?? 0) >= limits.maxAlertChannels) {
+      return {
+        error: `plan limit: the free plan includes ${limits.maxAlertChannels} alert channel — upgrade to Pro`,
+      };
+    }
+  }
+
+  const { error: insertErr } = await supabase.from("alert_channels").insert({
+    user_id: user.id,
+    type: "telegram",
+    config: { chat_id: link.chat_id },
+    verified: true, // connecting via the bot proves the chat is reachable
+  });
+  if (insertErr) {
+    return { error: "could not save the Telegram channel" };
+  }
+  await supabase
+    .from("telegram_links")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("token", token);
+  revalidatePath("/dashboard/alerts");
+  return { connected: true };
+}
+
+function generateConnectToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Buffer.from(bytes).toString("base64url");
 }
