@@ -60,6 +60,9 @@ jobs:
       - name: Run e2e (docker + postgres recipe)
         run: agent/e2e/run-docker.sh
 
+      - name: Run e2e (S3 / MinIO backend)
+        run: agent/e2e/run-s3.sh
+
   control-plane-e2e:
     name: Control plane e2e (supabase + agent)
     runs-on: ubuntu-latest
