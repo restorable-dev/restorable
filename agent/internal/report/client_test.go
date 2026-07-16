@@ -121,12 +121,13 @@ func TestSubmitRun(t *testing.T) {
 
 	start := time.Date(2026, 7, 4, 3, 0, 0, 0, time.UTC)
 	res := &RunResult{
-		AgentVersion: "v0.1.0",
-		Repo:         "/srv/backups",
-		SnapshotID:   "abc123",
-		Status:       StatusPass,
-		StartedAt:    start,
-		FinishedAt:   start.Add(time.Minute),
+		AgentVersion:      "v0.1.0",
+		Repo:              "/srv/backups",
+		SnapshotID:        "abc123",
+		Status:            StatusPass,
+		StartedAt:         start,
+		FinishedAt:        start.Add(time.Minute),
+		RestoreDurationMS: 42500,
 		Checks: []CheckResult{
 			{Recipe: "r", Type: "files", Status: StatusPass, Message: "ok", DurationMS: 5},
 		},
@@ -148,6 +149,9 @@ func TestSubmitRun(t *testing.T) {
 	checks, ok := got["checks"].([]any)
 	if !ok || len(checks) != 1 {
 		t.Errorf("checks = %v", got["checks"])
+	}
+	if got["restore_duration_ms"] != float64(42500) {
+		t.Errorf("restore_duration_ms = %v, want 42500", got["restore_duration_ms"])
 	}
 }
 

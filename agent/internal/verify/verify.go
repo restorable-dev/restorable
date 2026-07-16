@@ -113,9 +113,13 @@ func Run(ctx context.Context, opts Options) *report.RunResult {
 	}()
 
 	logf("restoring snapshot %s into sandbox", snap.ShortID)
+	restoreStart := time.Now()
 	if err := runner.Restore(ctx, snap.ID, sb.Dir()); err != nil {
 		return fail("restore failed: %v", err)
 	}
+	// Restore time is the headline recovery metric: how long until the data
+	// was back on disk, separate from how long verification took.
+	res.RestoreDurationMS = time.Since(restoreStart).Milliseconds()
 
 	roots := make([]recipes.Root, 0, len(snap.Paths))
 	for _, p := range snap.Paths {

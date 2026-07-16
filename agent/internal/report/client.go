@@ -107,15 +107,17 @@ func NewClient(creds *Credentials) *Client {
 }
 
 type runPayload struct {
-	RepoFingerprint string        `json:"repo_fingerprint"`
-	RepoLabel       string        `json:"repo_label"`
-	SnapshotID      string        `json:"snapshot_id,omitempty"`
-	Status          Status        `json:"status"`
-	Error           string        `json:"error,omitempty"`
-	StartedAt       time.Time     `json:"started_at"`
-	FinishedAt      time.Time     `json:"finished_at"`
-	AgentVersion    string        `json:"agent_version"`
-	Checks          []CheckResult `json:"checks"`
+	RepoFingerprint string    `json:"repo_fingerprint"`
+	RepoLabel       string    `json:"repo_label"`
+	SnapshotID      string    `json:"snapshot_id,omitempty"`
+	Status          Status    `json:"status"`
+	Error           string    `json:"error,omitempty"`
+	StartedAt       time.Time `json:"started_at"`
+	FinishedAt      time.Time `json:"finished_at"`
+	// RestoreDurationMS is metadata (a timing), so it may leave the machine.
+	RestoreDurationMS int64         `json:"restore_duration_ms,omitempty"`
+	AgentVersion      string        `json:"agent_version"`
+	Checks            []CheckResult `json:"checks"`
 }
 
 // SubmitRun reports one run result. Only pass/fail metadata leaves the
@@ -136,15 +138,16 @@ func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
 		fingerprint = Fingerprint(r.Repo) // fallback for old restic without a repo ID
 	}
 	payload := runPayload{
-		RepoFingerprint: fingerprint,
-		RepoLabel:       r.Repo, // already scrubbed at result construction
-		SnapshotID:      r.SnapshotID,
-		Status:          r.Status,
-		Error:           r.Error,
-		StartedAt:       r.StartedAt,
-		FinishedAt:      r.FinishedAt,
-		AgentVersion:    r.AgentVersion,
-		Checks:          checks,
+		RepoFingerprint:   fingerprint,
+		RepoLabel:         r.Repo, // already scrubbed at result construction
+		SnapshotID:        r.SnapshotID,
+		Status:            r.Status,
+		Error:             r.Error,
+		StartedAt:         r.StartedAt,
+		FinishedAt:        r.FinishedAt,
+		RestoreDurationMS: r.RestoreDurationMS,
+		AgentVersion:      r.AgentVersion,
+		Checks:            checks,
 	}
 	var resp struct {
 		RunID string `json:"run_id"`

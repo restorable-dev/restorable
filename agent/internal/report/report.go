@@ -40,13 +40,16 @@ type RunResult struct {
 	Repo         string `json:"repo"`
 	// RepoFingerprint, when set, is the stable per-repository fingerprint
 	// (from restic's repo ID). Empty falls back to hashing the repo string.
-	RepoFingerprint string        `json:"-"`
-	SnapshotID      string        `json:"snapshot_id,omitempty"`
-	Status          Status        `json:"status"`
-	Error           string        `json:"error,omitempty"`
-	StartedAt       time.Time     `json:"started_at"`
-	FinishedAt      time.Time     `json:"finished_at"`
-	Checks          []CheckResult `json:"checks"`
+	RepoFingerprint string    `json:"-"`
+	SnapshotID      string    `json:"snapshot_id,omitempty"`
+	Status          Status    `json:"status"`
+	Error           string    `json:"error,omitempty"`
+	StartedAt       time.Time `json:"started_at"`
+	FinishedAt      time.Time `json:"finished_at"`
+	// RestoreDurationMS is how long the restic restore itself took, separate
+	// from verification. Zero when the run failed before the restore finished.
+	RestoreDurationMS int64         `json:"restore_duration_ms,omitempty"`
+	Checks            []CheckResult `json:"checks"`
 }
 
 // credRe matches the userinfo section of an authority: everything up to the
@@ -121,6 +124,10 @@ func (r *RunResult) Human() string {
 		lines = append(lines, fmt.Sprintf("  snapshot:  %s", id))
 	}
 	lines = append(lines, fmt.Sprintf("  duration:  %s", r.Duration().Round(time.Millisecond)))
+	if r.RestoreDurationMS > 0 {
+		restore := time.Duration(r.RestoreDurationMS) * time.Millisecond
+		lines = append(lines, fmt.Sprintf("  restore:   %s", restore.Round(time.Millisecond)))
+	}
 	if r.Error != "" {
 		lines = append(lines, fmt.Sprintf("  error:     %s", r.Error))
 	}
