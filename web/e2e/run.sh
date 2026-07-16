@@ -93,7 +93,7 @@ log "run must appear in user A's data within 10 seconds"
 DEADLINE=$((SECONDS + 10))
 RUNS="$WORK/runs.json"
 while :; do
-  curl -sf "$SUPABASE_URL/rest/v1/test_runs?select=id,status,results" \
+  curl -sf "$SUPABASE_URL/rest/v1/test_runs?select=id,status,results,restore_duration_ms" \
     -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT_A" > "$RUNS"
   COUNT="$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$RUNS")"
   [ "$COUNT" -ge 1 ] && break
@@ -103,6 +103,12 @@ done
 ELAPSED_MS=$(( $(python3 -c 'import time; print(int(time.time()*1000))') - FINISHED_AT_MS ))
 echo "    run visible ${ELAPSED_MS}ms after completion"
 [ "$(jqpy 0.status "$RUNS")" = "pass" ] || fail "run status is not pass: $(cat "$RUNS")"
+# The agent reports the restore phase timing (verified recovery time).
+python3 -c '
+import json, sys
+ms = json.load(open(sys.argv[1]))[0].get("restore_duration_ms")
+assert isinstance(ms, int) and ms >= 0, f"restore_duration_ms = {ms!r}"
+' "$RUNS" || fail "restore_duration_ms missing from stored run"
 
 curl -sf "$SUPABASE_URL/rest/v1/repos?select=label,fingerprint" \
   -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT_A" > "$WORK/repos.json"

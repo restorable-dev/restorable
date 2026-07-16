@@ -17,7 +17,9 @@ export default async function RunsPage({
 
   let query = supabase
     .from("test_runs")
-    .select("id, repo_id, status, snapshot_id, started_at, finished_at, created_at, results")
+    .select(
+      "id, repo_id, status, snapshot_id, started_at, finished_at, restore_duration_ms, created_at, results",
+    )
     .order("created_at", { ascending: false })
     .limit(100);
   if (repoFilter) {
@@ -67,6 +69,11 @@ export default async function RunsPage({
                 <td className="py-3 text-neutral-500">
                   {formatDuration(
                     new Date(run.finished_at).getTime() - new Date(run.started_at).getTime(),
+                  )}
+                  {run.restore_duration_ms != null && (
+                    <div className="text-xs text-neutral-400">
+                      restore {formatDuration(run.restore_duration_ms)}
+                    </div>
                   )}
                 </td>
                 <td className="py-3 text-neutral-500">

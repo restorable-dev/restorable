@@ -22,7 +22,9 @@ export default function Home() {
           Your backups run every night. Restorable proves they&apos;d actually
           restore: on a schedule, it restores your latest snapshot into a
           disposable sandbox, verifies the data really works, destroys the
-          sandbox, and tells you the result.
+          sandbox, and tells you the result — including your measured
+          recovery time, so you know how long being back online actually
+          takes.
         </p>
         <CopyInstall command="curl -fsSL https://raw.githubusercontent.com/restorable-dev/restorable/main/install.sh | sh" />
         <div className="flex items-center gap-4">
@@ -45,6 +47,7 @@ restorable: PASS
   repo:      /srv/backups/restic
   snapshot:  cd10c302
   duration:  5.5s
+  restore:   4.1s
   checks:
     ✓ nextcloud/files   2 required path(s) present,
                         5 sampled checksum(s) match repository
@@ -53,7 +56,10 @@ restorable: PASS
         <p className="mt-4 max-w-xl text-neutral-600 dark:text-neutral-400">
           Every run is a real restore into a throwaway sandbox — then real
           verification against what your application needs to come back to
-          life. Exit codes for cron. JSON for scripts. No account required.
+          life. Because it&apos;s a real restore, the timing is real too: the
+          dashboard tracks your verified recovery time and how it drifts as
+          your data grows. Exit codes for cron. JSON for scripts. No account
+          required.
         </p>
       </section>
 
@@ -99,6 +105,13 @@ restorable: PASS
       {/* Pricing */}
       <section className="border-t border-neutral-200 py-16 dark:border-neutral-800">
         <h2 className="mb-6 text-2xl font-semibold">Pricing</h2>
+        {process.env.BETA_MODE === "1" && (
+          <p className="mb-6 rounded border border-green-300 bg-green-50 p-4 text-sm text-green-900 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200">
+            <strong>Open beta:</strong> everything below — including all of Pro
+            — is free right now. No card, no trial clock. We&apos;ll give
+            plenty of notice before paid plans begin.
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
             <h3 className="text-lg font-semibold">Free</h3>

@@ -48,6 +48,19 @@ export default async function RunDetailPage({
             {formatDuration(
               new Date(run.finished_at).getTime() - new Date(run.started_at).getTime(),
             )}
+            {run.restore_duration_ms != null && (
+              <span className="block text-xs text-neutral-400">
+                restore {formatDuration(run.restore_duration_ms)} · verify{" "}
+                {formatDuration(
+                  Math.max(
+                    0,
+                    new Date(run.finished_at).getTime() -
+                      new Date(run.started_at).getTime() -
+                      run.restore_duration_ms,
+                  ),
+                )}
+              </span>
+            )}
           </dd>
         </div>
         <div>

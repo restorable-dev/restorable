@@ -28,6 +28,8 @@ export interface TestRun {
   agent_version: string | null;
   started_at: string;
   finished_at: string;
+  /** Restore phase only (vs verification); null from pre-v0.1.0 agents. */
+  restore_duration_ms: number | null;
   created_at: string;
 }
 
