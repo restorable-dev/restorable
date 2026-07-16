@@ -1,19 +1,36 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { track } from "@/lib/analytics";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // The auth callback bounces here with ?error=link_expired when an email
+  // link (confirmation or password recovery) is invalid or already used.
+  const displayError =
+    error ??
+    (searchParams.get("error") === "link_expired"
+      ? "That email link has expired or was already used. Enter your email and request a new one."
+      : null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,7 +122,7 @@ export default function LoginPage() {
             className="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
           />
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {displayError && <p className="text-sm text-red-600">{displayError}</p>}
         {notice && <p className="text-sm text-green-700 dark:text-green-400">{notice}</p>}
         <button
           type="submit"
