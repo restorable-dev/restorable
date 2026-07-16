@@ -28,6 +28,14 @@ describe("runRequestSchema", () => {
     expect(parsed.checks[0].message).toBe("");
   });
 
+  it("accepts restore_duration_ms and leaves it optional", () => {
+    expect(
+      runRequestSchema.safeParse({ ...validRun, restore_duration_ms: 42500 }).success,
+    ).toBe(true);
+    const parsed = runRequestSchema.parse(validRun);
+    expect(parsed.restore_duration_ms).toBeUndefined();
+  });
+
   it.each([
     ["bad fingerprint", { repo_fingerprint: "not-hex" }],
     ["uppercase fingerprint", { repo_fingerprint: "A".repeat(64) }],
@@ -35,6 +43,9 @@ describe("runRequestSchema", () => {
     ["missing label", { repo_label: "" }],
     ["non-iso timestamp", { started_at: "yesterday" }],
     ["negative duration", { checks: [{ recipe: "r", type: "t", status: "pass", duration_ms: -1 }] }],
+    ["negative restore duration", { restore_duration_ms: -1 }],
+    ["fractional restore duration", { restore_duration_ms: 1.5 }],
+    ["absurd restore duration", { restore_duration_ms: 8 * 24 * 60 * 60 * 1000 }],
   ])("rejects %s", (_name, patch) => {
     expect(runRequestSchema.safeParse({ ...validRun, ...patch }).success).toBe(false);
   });

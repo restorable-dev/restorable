@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       agent_version: run.agent_version,
       started_at: run.started_at,
       finished_at: run.finished_at,
+      restore_duration_ms: run.restore_duration_ms ?? null,
     })
     .select("id")
     .single();

@@ -31,6 +31,15 @@ export const runRequestSchema = z
     error: z.string().max(4000).optional(),
     started_at: z.iso.datetime({ offset: true }),
     finished_at: z.iso.datetime({ offset: true }),
+    // How long the restic restore itself took (vs verification). Optional:
+    // absent when the run failed before the restore finished, and from
+    // pre-release agents. Capped at 7 days — larger values are clock bugs.
+    restore_duration_ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(7 * 24 * 60 * 60 * 1000)
+      .optional(),
     agent_version: z.string().max(50),
     checks: z.array(checkResultSchema).max(200),
   })
