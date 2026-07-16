@@ -69,6 +69,8 @@ temporary sandbox → run your checks → destroy the sandbox → print the verd
 
 ```
 restorable: PASS
+  duration:  12.4s
+  restore:   8.1s
   checks:
     ✓ my-app/files (3922ms): 2 required path(s) present, 5 sampled checksum(s) match repository
 ```
@@ -76,6 +78,10 @@ restorable: PASS
 **Green?** Congratulations — you now know something most people only hope:
 your backup restores. **Red?** Even better — you found out today instead of
 during a disaster. The message names exactly what was missing or corrupt.
+
+The `restore` line is your measured recovery time: how long the restore
+itself took, separate from verification. Watch it as your data grows — it's
+the number that matters on the day you actually need it.
 
 ## 4. Make it automatic (2 min)
 

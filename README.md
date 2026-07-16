@@ -13,14 +13,17 @@ restorable: PASS
   repo:      /srv/backups/restic
   snapshot:  cd10c302
   duration:  5.5s
+  restore:   4.1s
   checks:
     ✓ nextcloud/files (3922ms): 2 required path(s) present, 5 sampled checksum(s) match repository
     ✓ nextcloud/sqlite (18ms): "data/owncloud.db" passes integrity_check
 ```
 
 Works fully standalone — single binary, no account, cron-friendly exit codes.
-An optional cloud dashboard adds scheduling history, stale-backup detection,
-and alerts (Telegram, Discord, ntfy, email).
+Because every test is a real restore, you also get your **measured recovery
+time** — how long being back online actually takes, not a guess. An optional
+cloud dashboard adds scheduling history, recovery-time tracking, stale-backup
+detection, and alerts (Telegram, Discord, ntfy, email).
 
 ## Why
 
