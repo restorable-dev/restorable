@@ -18,7 +18,7 @@ fail() { printf 'E2E FAIL: %s\n' "$*" >&2; exit 1; }
 log "starting MinIO (S3 endpoint)"
 docker run -d --name "$NAME" -p 9101:9000 \
   -e MINIO_ROOT_USER=testaccess -e MINIO_ROOT_PASSWORD=testsecret123 \
-  minio/minio server /data >/dev/null
+  quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data >/dev/null
 for i in $(seq 1 30); do
   curl -sf -o /dev/null http://localhost:9101/minio/health/live && break
   sleep 1
