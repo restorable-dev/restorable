@@ -2,6 +2,8 @@ module github.com/restorable-dev/restorable/agent
 
 go 1.25.0
 
+toolchain go1.26.8
+
 require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.5.2+incompatible
