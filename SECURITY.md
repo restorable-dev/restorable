@@ -1,23 +1,20 @@
 # Security
 
-Restorable runs against your backup repository and your restored data. That
-puts it in a position of trust, so this document states what it guarantees,
-what it does not, and how to report a problem.
+Restorable reads your backup repository and handles your restored data, so
+here's what it does and doesn't promise, and how to tell me if something's
+wrong with it.
 
 ## Reporting a vulnerability
 
-Use GitHub's private vulnerability reporting:
-[**Report a vulnerability**](https://github.com/restorable-dev/restorable/security/advisories/new).
+Use [GitHub's private reporting](https://github.com/restorable-dev/restorable/security/advisories/new).
+That opens an advisory only the maintainers can see. Please don't file a public
+issue for anything exploitable.
 
-That opens a private advisory visible only to the maintainers. Please do not
-open a public issue for anything exploitable.
+I'll acknowledge within a week. Fixes may take longer, it's a small project, but
+the advisory will say where things stand instead of going quiet.
 
-You can expect an acknowledgement within a week. This is a small project, so
-a fix may take longer than that, and the advisory will say where things stand
-rather than going quiet.
-
-If you would rather not use GitHub, open a public issue asking for a contact
-address and leave out the details.
+If you'd rather not use GitHub, open a public issue asking for a contact address
+and leave the details out.
 
 ## Supported versions
 
@@ -26,73 +23,70 @@ address and leave out the details.
 | 0.1.x   | Yes       |
 | < 0.1.1 | No        |
 
-Releases before v0.1.1 were built with a Go toolchain carrying known standard
-library vulnerabilities and have been removed from the releases page. There is
-no auto-update mechanism by design, so upgrading is a manual reinstall.
+Anything before v0.1.1 was built with a Go toolchain carrying known stdlib
+vulnerabilities, and those releases have been pulled. There's no auto-update by
+design, so upgrading means reinstalling.
 
-## What the agent guarantees
+## What the agent actually enforces
 
-These are enforced in code, not by convention, and each has tests:
+Not design intentions, these are structural and have tests:
 
-- **Read-only against your repository.** The restic wrapper exposes a closed,
-  unexported subcommand type whose only values are `version`, `snapshots`,
-  `ls`, `restore`, `check`, `dump` and `cat`. There is no code path that
-  reaches `forget`, `prune` or `backup`; it will not compile.
-- **Sandboxes are destroyed.** Teardown is deferred, so it runs on every path
-  out of a verification run, including a panic in recipe code. Containers are
-  force-removed along with their volumes on the same guarantee.
-- **Disk pre-flight.** Free space is checked before a restore begins, so an
-  oversized snapshot fails with a clear error instead of filling the disk.
-- **Backup contents stay on your machine.** When connected to the hosted
-  control plane, only pass/fail status, timings, snapshot IDs, recipe names
-  and error strings are transmitted. File contents are never uploaded.
-- **Credentials and paths are scrubbed.** Strings are passed through a scrub
-  and redaction step before they are logged or transmitted, including error
-  messages from cleanup failures. Repository URLs containing credentials are
-  stripped before they can enter a report.
-- **Outbound only.** The agent polls over HTTPS. It opens no inbound ports.
+The restic wrapper takes a closed, unexported subcommand type. Its only values
+are `version`, `snapshots`, `ls`, `restore`, `check`, `dump` and `cat`. There's
+no path to `forget`, `prune` or `backup` because it wouldn't compile.
 
-Cloud connectivity is optional. `restorable test --config agent.yaml` runs the
-full local loop with no account.
+Sandbox teardown is deferred, so it runs on every exit from a verification run,
+panics included. Containers get force-removed with their volumes on the same
+guarantee.
+
+Free space is checked before a restore starts. An oversized snapshot fails with
+a clear error rather than filling your disk.
+
+Backup contents never leave your machine. Connected to the hosted control plane,
+it sends pass/fail, timings, snapshot IDs, recipe names and error strings. Not
+file contents.
+
+Strings go through scrubbing and redaction before they're logged or transmitted,
+including errors from cleanup failures. Repository URLs with credentials in them
+get stripped before anything can reach a report.
+
+The agent polls outbound over HTTPS and opens no inbound ports.
+
+Cloud is optional either way. `restorable test --config agent.yaml` runs the
+whole local loop without an account.
 
 ## Known advisories
 
-`govulncheck` currently reports two advisories against the agent, both through
-the Docker client library:
+`govulncheck` flags two against the agent, both through the Docker client
+library: GO-2026-4887 (CVE-2026-34040, high) and GO-2026-4883 (CVE-2026-33997,
+medium).
 
-| Advisory | CVE | Severity |
-| --- | --- | --- |
-| GO-2026-4887 | CVE-2026-34040 | High |
-| GO-2026-4883 | CVE-2026-33997 | Medium |
+Neither is exploitable here, and neither is fixable yet.
 
-**Assessment: not exploitable through this agent, and not currently fixable.**
+Both are daemon-side: an AuthZ plugin bypass on oversized request bodies, and an
+off-by-one in plugin privilege validation. This agent is a client. It creates
+containers, execs into them, and removes them over the local Docker socket. It
+doesn't install plugins or use an AuthZ plugin, so it never drives the affected
+paths. If these worry you, your Docker daemon version is what determines your
+exposure, so update Docker.
 
-Both describe daemon-side behavior, an AuthZ plugin bypass on oversized request
-bodies and an off-by-one in plugin privilege validation. The agent is a client.
-It creates, execs into, and removes containers over the local Docker socket. It
-does not install plugins and does not use an AuthZ plugin, so it does not drive
-the affected code paths. Your exposure to these is a function of your Docker
-daemon version, not of this agent; update Docker to address them.
+As for fixing it here: the patches only exist in `github.com/moby/moby/v2`,
+which has published nothing but betas so far. I'm not moving this onto a beta
+dependency over two advisories it doesn't exercise. When moby/moby/v2 goes
+stable the agent migrates and this section goes away.
 
-They are also not fixable here today. The patches exist only in
-`github.com/moby/moby/v2`, which has published nothing but beta releases. Moving
-this project onto a beta dependency to silence two advisories it does not
-exercise would trade a real risk for a cosmetic one.
-
-**Revisit trigger:** when `github.com/moby/moby/v2` publishes a stable release,
-the agent migrates to it and this section goes away.
-
-Development dependencies of the web control plane may carry their own
-advisories. Those are not shipped to users; `npm audit --omit=dev` on the
-production tree is the number that matters, and it is expected to be zero.
+Dev dependencies of the web control plane may carry their own advisories. Those
+don't ship. `npm audit --omit=dev` on the production tree is the number that
+matters and it should read zero.
 
 ## Out of scope
 
-- Vulnerabilities in restic itself. Report those to
-  [restic](https://github.com/restic/restic).
-- Vulnerabilities in the Docker daemon, including the two above.
-- Anything requiring an attacker who already has write access to your agent
-  configuration or recipe files. Those are trusted input, equivalent to
-  local code execution.
-- Results from automated scanners without an accompanying explanation of how
-  the issue is reachable in this codebase.
+Bugs in restic itself go to [restic](https://github.com/restic/restic). Same for
+the Docker daemon, including the two above.
+
+Anything that needs an attacker who already has write access to your agent
+config or recipe files. That's trusted input, roughly equivalent to local code
+execution.
+
+Raw scanner output with no explanation of how the issue is reachable in this
+codebase.
