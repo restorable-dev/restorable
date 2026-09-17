@@ -1,9 +1,7 @@
 # Immich restore verification.
 #
 # Assumes your backup covers Immich's UPLOAD_LOCATION, which also holds the
-# automatic database dumps Immich writes to backups/ (gzipped pg_dump files —
-# supported directly). Adjust the dump path to your newest dump file, or
-# point it at wherever your own pg_dump job writes.
+# automatic database dumps Immich writes to backups/.
 name: immich
 checks:
   - type: files
@@ -13,15 +11,25 @@ checks:
       - path: upload/
     checksum_sample: 5
 
-  # Immich's own DB dumps land in backups/ under the upload location.
-  # The dump filename contains a timestamp; point this at the one your
-  # backup captures (a stable symlink or copy step in your backup job
-  # makes this deterministic).
-  - type: postgres
-    dump: backups/immich-db-backup-latest.sql.gz
-    image: postgres:16-alpine
-    tables:
-      - name: users
-        min_rows: 1
-      - name: assets
-        min_rows: 1
+  # Immich names its dumps with a timestamp and two version numbers, e.g.
+  #   backups/immich-db-backup-20250729T114018-v1.136.0-pg14.17.sql.gz
+  # so there is no fixed path to assert: the filename changes every run and
+  # again on every upgrade. Recipes are literal paths, with no globbing.
+  #
+  # To verify the database too, give your backup job a stable name to point
+  # at, then uncomment the check below and use that path:
+  #
+  #   cp "$(ls -t /path/to/upload/backups/immich-db-backup-*.sql.gz | head -1)" \
+  #      /path/to/upload/backups/latest.sql.gz
+  #
+  # - type: postgres
+  #   dump: backups/latest.sql.gz
+  #   image: postgres:16-alpine
+  #   tables:
+  #     # Singular: Immich declares @Table('user') and @Table('asset').
+  #     # They were renamed from the plural forms in the 1.13x line, so check
+  #     # your own dump if you are on something older.
+  #     - name: user
+  #       min_rows: 1
+  #     - name: asset
+  #       min_rows: 1

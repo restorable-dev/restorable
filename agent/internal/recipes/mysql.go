@@ -101,7 +101,7 @@ func (c *MySQLCheck) Run(ctx context.Context, t *Target) (report.Status, string)
 		return report.StatusError, err.Error()
 	}
 	if code != 0 {
-		return report.StatusFail, fmt.Sprintf("dump %q failed to load into mysql: %s", c.Dump, tail(out, 3))
+		return report.StatusFail, fmt.Sprintf("dump %q failed to load into mysql: %s", c.Dump, diagnostic(out, 3))
 	}
 
 	for _, tbl := range c.Tables {
@@ -112,7 +112,7 @@ func (c *MySQLCheck) Run(ctx context.Context, t *Target) (report.Status, string)
 			return report.StatusError, err.Error()
 		}
 		if code != 0 {
-			return report.StatusFail, fmt.Sprintf("count rows in %q: %s", tbl.Name, tail(out, 2))
+			return report.StatusFail, fmt.Sprintf("count rows in %q: %s", tbl.Name, diagnostic(out, 2))
 		}
 		n, err := strconv.ParseInt(strings.TrimSpace(stripMySQLWarning(out)), 10, 64)
 		if err != nil {

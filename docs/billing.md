@@ -1,5 +1,10 @@
 # Plans & billing
 
+> **Open beta: everything here is free right now.** Every Pro feature is
+> unlocked for every account, no card and no trial clock. The limits and
+> prices below describe what happens when the beta ends, not what is
+> enforced today.
+
 | | Free | Pro ($8/mo or $80/yr) |
 |---|---|---|
 | Repositories | 1 | Unlimited |
@@ -13,7 +18,7 @@ alert channel. Pro removes the limits and adds monthly confidence reports
 
 ## How limits behave
 
-Limits are enforced server-side, at the moment of growth:
+Once the beta ends, limits are enforced server-side, at the moment of growth:
 
 - A run for a **new** repository beyond your limit is rejected with a clear
   `plan limit` error. Repositories that already report are never blocked.
