@@ -87,10 +87,10 @@ func (c *DockerAppCheck) Run(ctx context.Context, t *Target) (report.Status, str
 		}
 		hostDir = t.Roots[0].Dir
 	} else {
-		var ok bool
-		hostDir, ok = resolve(t.Roots, restored)
-		if !ok {
-			return report.StatusFail, fmt.Sprintf("mount path %q not found in restored snapshot", c.Mount.Restored)
+		var err error
+		hostDir, err = resolve(t.Roots, restored)
+		if err != nil {
+			return report.StatusFail, fmt.Sprintf("mount path %q %v", c.Mount.Restored, err)
 		}
 	}
 

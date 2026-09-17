@@ -65,9 +65,9 @@ func (f *FilesCheck) Run(ctx context.Context, t *Target) (report.Status, string)
 
 	for _, req := range f.Require {
 		rel := strings.TrimSuffix(req.Path, "/")
-		abs, ok := resolve(t.Roots, rel)
-		if !ok {
-			issues = append(issues, fmt.Sprintf("required path %q not found in restored snapshot", req.Path))
+		abs, err := resolve(t.Roots, rel)
+		if err != nil {
+			issues = append(issues, fmt.Sprintf("required path %q %v", req.Path, err))
 			continue
 		}
 		if req.MinFiles > 0 {
@@ -124,20 +124,52 @@ func validateRelPath(p string) error {
 	return nil
 }
 
+// errPathMissing means nothing exists at the requested path.
+var errPathMissing = errors.New("not found in restored snapshot")
+
+// errPathEscapes means the path exists but leads out of the restored data. For
+// a backup tool this is a finding in its own right, not a lookup failure: the
+// symlink was backed up and whatever it points at was not.
+var errPathEscapes = errors.New(
+	"is a symlink leading outside the restored snapshot, so its target was never backed up")
+
 // resolve finds rel under one of the restored roots, enforcing containment:
 // even if a malformed path slips past validation, the resolved location must
 // stay inside a root directory (defense in depth against traversal).
-func resolve(roots []Root, rel string) (string, bool) {
+func resolve(roots []Root, rel string) (string, error) {
+	escaped := false
 	for _, root := range roots {
 		abs := filepath.Join(root.Dir, rel)
 		if !withinRoot(root.Dir, abs) {
 			continue
 		}
-		if _, err := os.Stat(abs); err == nil {
-			return abs, true
+		if _, err := os.Stat(abs); err != nil {
+			continue
 		}
+		// os.Stat follows symlinks. Without the check below, a restored
+		// symlink pointing out of the sandbox resolves to the live copy on the
+		// host, so the check verifies the running system and reports the
+		// backup healthy — the exact failure this tool exists to catch.
+		//
+		// Both sides are resolved before comparing because the sandbox itself
+		// routinely sits under a symlinked prefix: /tmp is /private/tmp on
+		// macOS, so comparing a resolved path against an unresolved root would
+		// reject every legitimate path there.
+		realRoot, rootErr := filepath.EvalSymlinks(root.Dir)
+		realAbs, absErr := filepath.EvalSymlinks(abs)
+		if rootErr != nil || absErr != nil {
+			continue
+		}
+		if !withinRoot(realRoot, realAbs) {
+			escaped = true
+			continue
+		}
+		return abs, nil
 	}
-	return "", false
+	if escaped {
+		return "", errPathEscapes
+	}
+	return "", errPathMissing
 }
 
 // withinRoot reports whether abs is inside dir (after cleaning), blocking
