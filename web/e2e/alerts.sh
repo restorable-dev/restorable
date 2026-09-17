@@ -90,8 +90,11 @@ curl -sf -X POST "$SUPABASE_URL/rest/v1/alert_channels" \
   -H "Prefer: return=representation" \
   -d '{"user_id":"'$USER_ID'","type":"telegram","config":{"chat_id":"42"}}' > "$WORK/channel.json"
 CHANNEL_ID="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["id"])' "$WORK/channel.json")"
+# Service role, because `authenticated` has no privilege on `verified` (see
+# migration 20260917000001). This mirrors the app: a user creates the channel,
+# and only the server marks it verified once a send has actually succeeded.
 curl -sf -X PATCH "$SUPABASE_URL/rest/v1/alert_channels?id=eq.$CHANNEL_ID" \
-  -H "apikey: $ANON_KEY" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
+  -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" \
   -d '{"verified":true}'
 
 log "building fixture: repo whose recipe requires a missing path"

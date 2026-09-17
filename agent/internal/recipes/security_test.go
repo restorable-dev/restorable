@@ -36,7 +36,7 @@ func TestPathTraversalRejectedEverywhere(t *testing.T) {
 // slips past validation (defense in depth).
 func TestResolveContainment(t *testing.T) {
 	roots := []Root{{Dir: t.TempDir(), SnapPath: "/srv"}}
-	if _, ok := resolve(roots, "../../etc/passwd"); ok {
+	if _, err := resolve(roots, "../../etc/passwd"); err == nil {
 		t.Error("resolve returned a path escaping the root")
 	}
 }
