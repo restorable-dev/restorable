@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ErrNoCredentials means the agent is not registered with a control plane —
@@ -120,6 +121,39 @@ type runPayload struct {
 	Checks            []CheckResult `json:"checks"`
 }
 
+// maxRepoLabelBytes mirrors the control plane's bound on repo_label. Keeping
+// the agent inside it matters more than it looks: the server rejected the
+// whole submission when a label ran long, so the repo row was never created,
+// the run never appeared on the dashboard, and stale detection could never
+// fire for that repo — while the agent still printed PASS and exited 0. Long
+// B2 and S3 URLs reach 200 characters easily.
+//
+// Bounding bytes is enough: the server counts UTF-16 units, which is never
+// more than the UTF-8 byte count.
+const maxRepoLabelBytes = 200
+
+// truncateRepoLabel keeps both ends of an over-long repo string. The head
+// carries the scheme and host, the tail carries the path that tells two repos
+// on the same host apart, so cutting either end alone loses the half that
+// makes the label worth showing. The label is display only; repos are
+// identified by fingerprint, so shortening it costs nothing.
+func truncateRepoLabel(s string) string {
+	if len(s) <= maxRepoLabelBytes {
+		return s
+	}
+	const ellipsis = "…"
+	budget := maxRepoLabelBytes - len(ellipsis)
+	head := budget / 2
+	tailStart := len(s) - (budget - head)
+	for head > 0 && !utf8.RuneStart(s[head]) {
+		head--
+	}
+	for tailStart < len(s) && !utf8.RuneStart(s[tailStart]) {
+		tailStart++
+	}
+	return s[:head] + ellipsis + s[tailStart:]
+}
+
 // SubmitRun reports one run result. Only pass/fail metadata leaves the
 // machine: the repo is reduced to a fingerprint plus its scrubbed label, and
 // every string in the result was scrubbed when the result was built.
@@ -138,11 +172,15 @@ func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
 		fingerprint = Fingerprint(r.Repo) // fallback for old restic without a repo ID
 	}
 	payload := runPayload{
-		RepoFingerprint:   fingerprint,
-		RepoLabel:         r.Repo, // already scrubbed at result construction
-		SnapshotID:        r.SnapshotID,
-		Status:            r.Status,
-		Error:             r.Error,
+		RepoFingerprint: fingerprint,
+		RepoLabel:       truncateRepoLabel(r.Repo), // scrubbed at result construction
+		SnapshotID:      r.SnapshotID,
+		Status:          r.Status,
+		// Same treatment as check messages. A failed restore enumerates paths
+		// out of the user's snapshot, so this field needs the DB-detail strip
+		// and the length bound too, not just the credential scrub it already
+		// carries from result construction.
+		Error:             RedactForTransport(r.Error),
 		StartedAt:         r.StartedAt,
 		FinishedAt:        r.FinishedAt,
 		RestoreDurationMS: r.RestoreDurationMS,

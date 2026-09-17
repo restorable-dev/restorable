@@ -84,9 +84,9 @@ func (c *PostgresCheck) validate() error {
 
 // Run implements Check.
 func (c *PostgresCheck) Run(ctx context.Context, t *Target) (report.Status, string) {
-	dumpPath, ok := resolve(t.Roots, strings.TrimSuffix(c.Dump, "/"))
-	if !ok {
-		return report.StatusFail, fmt.Sprintf("dump file %q not found in restored snapshot", c.Dump)
+	dumpPath, err := resolve(t.Roots, strings.TrimSuffix(c.Dump, "/"))
+	if err != nil {
+		return report.StatusFail, fmt.Sprintf("dump file %q %v", c.Dump, err)
 	}
 	runner, err := t.Docker(ctx)
 	if err != nil {
