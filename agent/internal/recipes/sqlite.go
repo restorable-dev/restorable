@@ -36,9 +36,9 @@ func (c *SQLiteCheck) validate() error {
 // database, integrity errors — is a verification failure: the backup does
 // not contain a working database.
 func (c *SQLiteCheck) Run(ctx context.Context, t *Target) (report.Status, string) {
-	abs, ok := resolve(t.Roots, strings.TrimSuffix(c.Path, "/"))
-	if !ok {
-		return report.StatusFail, fmt.Sprintf("database %q not found in restored snapshot", c.Path)
+	abs, err := resolve(t.Roots, strings.TrimSuffix(c.Path, "/"))
+	if err != nil {
+		return report.StatusFail, fmt.Sprintf("database %q %v", c.Path, err)
 	}
 
 	// immutable=1 guarantees the check never writes (no WAL, no journal
