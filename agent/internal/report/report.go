@@ -66,18 +66,34 @@ func Scrub(s string) string {
 	return credRe.ReplaceAllString(s, "${1}***@")
 }
 
-// pgDetailRe matches Postgres/MySQL DETAIL/HINT/CONTEXT lines, which routinely
-// echo actual row values (emails, names) from the user's backup.
-var pgDetailRe = regexp.MustCompile(`(?im)^\s*(DETAIL|HINT|CONTEXT|Key \()[^\n]*$`)
+// dbDetailRe matches the start of a message segment that echoes row values out
+// of the user's restored database: Postgres and MySQL put real column data in
+// DETAIL, HINT and CONTEXT, and psql's "LINE n:" echoes the offending
+// statement text.
+//
+// This is deliberately not anchored with (?m)^...$. The recipe engine joins
+// command output with " / " before the message is ever built, so a
+// line-anchored pattern matches nothing on a real message and the filter
+// silently does nothing. Segment the message first, then match per segment.
+var dbDetailRe = regexp.MustCompile(`(?i)^\s*(DETAIL|HINT|CONTEXT|LINE\s+\d+|Key\s*\()`)
+
+// segmentRe splits a check message back into the pieces command output was
+// joined from, whichever joiner produced it.
+var segmentRe = regexp.MustCompile(`\n| / `)
 
 // RedactForTransport prepares a check message to leave the machine. Check
 // messages are the one field that can embed raw command output from the
-// user's restored databases (Postgres error DETAIL lines echo row values), so
-// anything sent to the control plane is scrubbed of URL credentials, stripped
-// of DB detail lines, and length-bounded. Local stdout keeps the full text.
+// user's restored databases, so anything sent to the control plane is stripped
+// of DB detail segments, scrubbed of URL credentials, and length-bounded.
+// Local stdout keeps the full text.
 func RedactForTransport(msg string) string {
-	msg = pgDetailRe.ReplaceAllString(msg, "[redacted]")
-	msg = Scrub(msg)
+	segs := segmentRe.Split(msg, -1)
+	for i, seg := range segs {
+		if dbDetailRe.MatchString(seg) {
+			segs[i] = "[redacted]"
+		}
+	}
+	msg = Scrub(strings.Join(segs, " / "))
 	const max = 500
 	if len(msg) > max {
 		msg = msg[:max] + "…"

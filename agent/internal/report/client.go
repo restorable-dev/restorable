@@ -138,11 +138,15 @@ func (c *Client) SubmitRun(ctx context.Context, r *RunResult) error {
 		fingerprint = Fingerprint(r.Repo) // fallback for old restic without a repo ID
 	}
 	payload := runPayload{
-		RepoFingerprint:   fingerprint,
-		RepoLabel:         r.Repo, // already scrubbed at result construction
-		SnapshotID:        r.SnapshotID,
-		Status:            r.Status,
-		Error:             r.Error,
+		RepoFingerprint: fingerprint,
+		RepoLabel:       r.Repo, // already scrubbed at result construction
+		SnapshotID:      r.SnapshotID,
+		Status:          r.Status,
+		// Same treatment as check messages. A failed restore enumerates paths
+		// out of the user's snapshot, so this field needs the DB-detail strip
+		// and the length bound too, not just the credential scrub it already
+		// carries from result construction.
+		Error:             RedactForTransport(r.Error),
 		StartedAt:         r.StartedAt,
 		FinishedAt:        r.FinishedAt,
 		RestoreDurationMS: r.RestoreDurationMS,
