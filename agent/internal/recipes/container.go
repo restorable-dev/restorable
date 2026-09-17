@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -158,6 +159,30 @@ func openDump(path, tmpDir string) (r io.ReadCloser, size int64, custom bool, er
 		return nil, 0, false, err
 	}
 	return f, info.Size(), string(head) == "PGDMP", nil
+}
+
+// errLineRe finds the line carrying the actual reason a database command
+// failed.
+var errLineRe = regexp.MustCompile(`(?i)\b(ERROR|FATAL)\b`)
+
+// diagnostic summarises command output for a user-facing message, starting
+// from the line that says what went wrong.
+//
+// tail() alone was wrong here: psql reports the reason first and then echoes
+// the offending statement with a caret under it, so keeping the last two lines
+// kept the caret and discarded "relation \"assets\" does not exist". Users got
+// an arrow pointing at nothing, and the quickstart promises the message names
+// exactly what was missing.
+func diagnostic(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	for i, line := range lines {
+		if !errLineRe.MatchString(line) {
+			continue
+		}
+		end := min(i+n, len(lines))
+		return strings.Join(lines[i:end], " / ")
+	}
+	return tail(s, n)
 }
 
 // tail returns the last n lines of command output for error messages.

@@ -86,13 +86,37 @@ func (r *Runner) run(ctx context.Context, sub subcommand, out io.Writer, args ..
 	cmd.Stderr = &stderr
 	cmd.Env = r.env()
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
+		msg := resticMessage(strings.TrimSpace(stderr.String()))
 		if msg == "" {
 			return fmt.Errorf("restic %s: %w", sub, err)
 		}
 		return fmt.Errorf("restic %s: %w: %s", sub, err, msg)
 	}
 	return nil
+}
+
+// resticMessage pulls the readable sentence out of restic's error output.
+//
+// Several subcommands are invoked with --json, and restic then reports
+// failures as {"message_type":"exit_error","code":12,"message":"Fatal: wrong
+// password or no key found"}. A wrong password or a mistyped repo path is the
+// most common first-run mistake there is, so showing someone the raw object
+// and burying the one sentence that tells them what to fix is the worst place
+// to do it.
+func resticMessage(stderr string) string {
+	for _, line := range strings.Split(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var e struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal([]byte(line), &e) == nil && e.Message != "" {
+			return e.Message
+		}
+	}
+	return stderr
 }
 
 // Version returns the restic version string.

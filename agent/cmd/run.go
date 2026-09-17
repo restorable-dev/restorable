@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -52,7 +53,11 @@ func newRunCmd() *cobra.Command {
 						logger.Printf("write result: %v", err)
 					}
 				} else {
-					cmd.Println(res.Human())
+					// The result goes to stdout, progress to stderr, so `restorable test
+					// >> log` captures the verdict. cmd.Println writes to stderr.
+					if _, err := fmt.Fprintln(cmd.OutOrStdout(), res.Human()); err != nil {
+						logger.Printf("write result: %v", err)
+					}
 				}
 				logger.Printf("restore test finished: %s", res.Status)
 			}
