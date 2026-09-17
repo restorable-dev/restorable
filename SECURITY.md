@@ -42,13 +42,23 @@ guarantee.
 Free space is checked before a restore starts. An oversized snapshot fails with
 a clear error rather than filling your disk.
 
-Backup contents never leave your machine. Connected to the hosted control plane,
-it sends pass/fail, timings, snapshot IDs, recipe names and error strings. Not
-file contents.
+The contents of your files never leave your machine. Connected to the hosted
+control plane, the agent sends pass/fail, timings, snapshot IDs, recipe and
+check names, check messages, error strings, and a label for the repository.
 
-Strings go through scrubbing and redaction before they're logged or transmitted,
-including errors from cleanup failures. Repository URLs with credentials in them
-get stripped before anything can reach a report.
+Be aware of what those last three carry, because it is more than "metadata"
+suggests. The repository label is your repo string with credentials stripped,
+so it still contains the host and path, and it appears in the title of every
+alert sent to whatever channels you connect. Check messages can name paths from
+inside the snapshot: a checksum mismatch says which file differed. If either is
+more than you want reaching a third-party chat service, run the agent
+standalone and skip the cloud entirely.
+
+Strings go through scrubbing and redaction before they're logged or
+transmitted, including errors from cleanup failures. Credentials embedded in
+repository URLs are stripped before anything can reach a report, and output
+from database checks is stripped of the segments that echo row values, since a
+failed load quotes the data that failed.
 
 The agent polls outbound over HTTPS and opens no inbound ports.
 
@@ -85,8 +95,10 @@ Bugs in restic itself go to [restic](https://github.com/restic/restic). Same for
 the Docker daemon, including the two above.
 
 Anything that needs an attacker who already has write access to your agent
-config or recipe files. That's trusted input, roughly equivalent to local code
-execution.
+config or recipe files. Paths inside a recipe are validated and contained, so a
+recipe cannot read outside the restored snapshot, but a recipe also names the
+container images its database and app checks run. Treat one you did not write
+the way you would treat a docker-compose file from the same source.
 
 Raw scanner output with no explanation of how the issue is reachable in this
 codebase.
