@@ -5,9 +5,13 @@ import { revalidatePath } from "next/cache";
 import { channelTypeSchema, parseChannelConfig, type ChannelType } from "@/lib/alerts/config";
 import { sendToChannel } from "@/lib/alerts/send";
 import { getLimits } from "@/lib/billing/entitlements";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-// All actions use the user's own client: RLS scopes every read and write.
+// Actions use the user's own client, so RLS scopes every read and write. The
+// one exception is setting alert_channels.verified, which `authenticated` has
+// no privilege on: it records that a message actually reached the destination,
+// so only the code that performed the send may assert it.
 
 export async function createAlertChannel(
   _prev: unknown,
@@ -76,6 +80,14 @@ export async function deleteAlertChannel(id: string): Promise<void> {
 // only verified channels receive real alerts.
 export async function testAlertChannel(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "not signed in" };
+  }
+  // RLS scopes this read to the caller, so a channel coming back at all is
+  // proof of ownership.
   const { data: channel } = await supabase
     .from("alert_channels")
     .select("id, type, config")
@@ -96,7 +108,15 @@ export async function testAlertChannel(id: string): Promise<{ error?: string }> 
   } catch (err) {
     return { error: err instanceof Error ? err.message : "send failed" };
   }
-  await supabase.from("alert_channels").update({ verified: true }).eq("id", id);
+  // `verified` is not writable by `authenticated` (see migration
+  // 20260917000001): it asserts that a message actually arrived, which only
+  // this code path knows. sendToChannel returned, so flip it with the service
+  // role, scoped to the owner since that bypasses RLS.
+  await createAdminClient()
+    .from("alert_channels")
+    .update({ verified: true })
+    .eq("id", id)
+    .eq("user_id", user.id);
   revalidatePath("/dashboard/alerts");
   return {};
 }
@@ -169,15 +189,28 @@ export async function pollTelegramConnect(
     }
   }
 
-  const { error: insertErr } = await supabase.from("alert_channels").insert({
-    user_id: user.id,
-    type: "telegram",
-    config: { chat_id: link.chat_id },
-    verified: true, // connecting via the bot proves the chat is reachable
-  });
-  if (insertErr) {
+  // Insert unverified through the user's own client, so the RLS insert policy
+  // (and with it the plan-limit gate) still governs channel creation.
+  const { data: created, error: insertErr } = await supabase
+    .from("alert_channels")
+    .insert({
+      user_id: user.id,
+      type: "telegram",
+      config: { chat_id: link.chat_id },
+    })
+    .select("id")
+    .single();
+  if (insertErr || !created) {
     return { error: "could not save the Telegram channel" };
   }
+  // Connecting via the bot is itself proof the chat is reachable, so this is
+  // the one place a channel is born verified. `verified` is not writable by
+  // `authenticated` (migration 20260917000001), hence the service role.
+  await createAdminClient()
+    .from("alert_channels")
+    .update({ verified: true })
+    .eq("id", created.id)
+    .eq("user_id", user.id);
   await supabase
     .from("telegram_links")
     .update({ consumed_at: new Date().toISOString() })
