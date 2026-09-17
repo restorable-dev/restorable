@@ -24,6 +24,14 @@ import (
 // still runs when the surrounding run is cancelled (SIGTERM, timeout).
 const cleanupTimeout = 60 * time.Second
 
+// How long to wait for the daemon to publish a container's port, and how often
+// to re-check. Publication is asynchronous, so the binding is routinely absent
+// for a moment after start; a single inspect loses that race every time.
+const (
+	portPublishTimeout = 15 * time.Second
+	portPollInterval   = 100 * time.Millisecond
+)
+
 // ContainerSpec describes a throwaway container for a verification check.
 type ContainerSpec struct {
 	Image string
@@ -93,7 +101,9 @@ func (d *Docker) StartContainer(ctx context.Context, spec ContainerSpec) (string
 	}
 	host := &container.HostConfig{Binds: spec.Binds}
 	if spec.PublishPort != "" {
-		port, err := nat.NewPort(strings.TrimSuffix(spec.PublishPort, "/tcp"), "tcp")
+		// NewPort takes the protocol first, then the port. Passing them the
+		// other way round parses "tcp" as a port number and fails every time.
+		port, err := nat.NewPort("tcp", strings.TrimSuffix(spec.PublishPort, "/tcp"))
 		if err != nil {
 			return "", fmt.Errorf("invalid port %q: %w", spec.PublishPort, err)
 		}
@@ -184,16 +194,36 @@ func (d *Docker) CopyTo(ctx context.Context, id, dstDir, name string, content io
 // MappedPort returns the ephemeral host port bound to the given container
 // port ("8080/tcp").
 func (d *Docker) MappedPort(ctx context.Context, id, containerPort string) (string, error) {
-	inspect, err := d.cli.ContainerInspect(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("inspect container: %w", err)
-	}
 	port := nat.Port(containerPort)
-	bindings := inspect.NetworkSettings.Ports[port]
-	if len(bindings) == 0 {
-		return "", fmt.Errorf("container port %s is not published", containerPort)
+	deadline := time.Now().Add(portPublishTimeout)
+	for {
+		inspect, err := d.cli.ContainerInspect(ctx, id)
+		if err != nil {
+			return "", fmt.Errorf("inspect container: %w", err)
+		}
+		// The daemon fills NetworkSettings.Ports asynchronously, so an inspect
+		// issued straight after start reliably returns an empty binding even
+		// though HostConfig already carries it. Poll rather than read once.
+		if b := inspect.NetworkSettings.Ports[port]; len(b) > 0 && b[0].HostPort != "" {
+			return b[0].HostPort, nil
+		}
+		// An app that dies on the restored data never publishes anything. That
+		// is the common real failure here, so name it instead of blaming the
+		// port and sending the user looking in the wrong place.
+		if !inspect.State.Running {
+			return "", fmt.Errorf("container exited early with code %d before publishing port %s",
+				inspect.State.ExitCode, containerPort)
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("container port %s was not published within %s",
+				containerPort, portPublishTimeout)
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(portPollInterval):
+		}
 	}
-	return bindings[0].HostPort, nil
 }
 
 // State reports whether the container is still running, and its exit code

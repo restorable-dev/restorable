@@ -137,4 +137,92 @@ PY
 assert_docker_clean "failing run"
 assert_sandbox_empty
 
+
+# ── docker-app ───────────────────────────────────────────────────────────────
+# docker-app shipped broken in v0.1.0 and v0.1.1 and nothing caught it: its
+# unit test uses a fake ContainerRunner, so the real StartContainer and
+# MappedPort path had never executed in CI. These cases run it for real.
+
+log "case 3: docker-app boots the real image against restored data (exit 0)"
+APP_SRC="$WORK/src-app"
+mkdir -p "$APP_SRC/site"
+echo "<html><body>restored-ok</body></html>" > "$APP_SRC/site/index.html"
+APP_REPO="$WORK/app-repo"
+restic -r "$APP_REPO" init -q
+restic -r "$APP_REPO" backup -q "$APP_SRC"
+
+cat > "$WORK/recipe-app.yaml" <<EOF
+name: e2e-docker-app
+checks:
+  - type: docker-app
+    image: nginx:alpine
+    mount: { restored: "site", at: "/usr/share/nginx/html" }
+    ready:
+      http: "http://localhost:80/index.html"
+      contains: "restored-ok"
+      timeout: 90s
+EOF
+cat > "$WORK/agent-app.yaml" <<EOF
+repo: $APP_REPO
+recipes: [recipe-app.yaml]
+sandbox:
+  dir: $SANDBOX
+EOF
+
+"$BIN" test --config "$WORK/agent-app.yaml" --json > "$WORK/app.json"
+python3 - "$WORK/app.json" <<'PYEOF'
+import json, sys
+doc = json.load(open(sys.argv[1]))
+assert doc["status"] == "pass", doc
+[check] = doc["checks"]
+assert check["type"] == "docker-app", check
+assert check["status"] == "pass", check
+PYEOF
+assert_docker_clean "docker-app passing run"
+assert_sandbox_empty
+
+log "case 4: docker-app fails when restored data lacks the asserted page (exit 1)"
+APP_BAD_SRC="$WORK/src-app-bad"
+mkdir -p "$APP_BAD_SRC/site"
+echo "placeholder" > "$APP_BAD_SRC/site/other.html"   # index.html absent
+APP_BAD_REPO="$WORK/app-bad-repo"
+restic -r "$APP_BAD_REPO" init -q
+restic -r "$APP_BAD_REPO" backup -q "$APP_BAD_SRC"
+
+cat > "$WORK/recipe-app-bad.yaml" <<EOF
+name: e2e-docker-app-bad
+checks:
+  - type: docker-app
+    image: nginx:alpine
+    mount: { restored: "site", at: "/usr/share/nginx/html" }
+    ready:
+      http: "http://localhost:80/index.html"
+      contains: "restored-ok"
+      timeout: 30s
+EOF
+cat > "$WORK/agent-app-bad.yaml" <<EOF
+repo: $APP_BAD_REPO
+recipes: [recipe-app-bad.yaml]
+sandbox:
+  dir: $SANDBOX
+EOF
+
+got=0
+"$BIN" test --config "$WORK/agent-app-bad.yaml" --json > "$WORK/app-bad.json" || got=$?
+[ "$got" -eq 1 ] || fail "expected exit 1 for docker-app with missing page, got $got"
+python3 - "$WORK/app-bad.json" <<'PYEOF'
+import json, sys
+doc = json.load(open(sys.argv[1]))
+assert doc["status"] == "fail", doc
+[check] = doc["checks"]
+assert check["status"] == "fail", check
+msg = check["message"]
+# Must fail on readiness, never on "not published". That message meant the
+# port lookup lost its race with the daemon and blamed the wrong thing.
+assert "not published" not in msg, f"port race regressed: {msg!r}"
+assert "not ready" in msg or "exited early" in msg, f"unclear message: {msg!r}"
+PYEOF
+assert_docker_clean "docker-app failing run"
+assert_sandbox_empty
+
 log "all docker e2e cases passed"

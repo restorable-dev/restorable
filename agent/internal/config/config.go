@@ -52,6 +52,12 @@ var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // resolved relative to the config file's directory.
 func Load(path string) (*Config, error) {
 	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// The first thing a new user hits if they skip straight to `test`.
+		// Name the command that creates the file rather than leaving them to
+		// find it in the docs.
+		return nil, fmt.Errorf("no config at %s — run `restorable init --repo <your-repo>` to create one", path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("open config: %w", err)
 	}

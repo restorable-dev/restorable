@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/restorable-dev/restorable/agent/internal/config"
@@ -49,7 +51,11 @@ func newTestCmd() *cobra.Command {
 					return err
 				}
 			} else {
-				cmd.Println(res.Human())
+				// The result goes to stdout, progress to stderr, so `restorable test
+				// >> log` captures the verdict. cmd.Println writes to stderr.
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), res.Human()); err != nil {
+					return err
+				}
 			}
 			if code := res.ExitCode(); code != 0 {
 				return &exitError{code: code}

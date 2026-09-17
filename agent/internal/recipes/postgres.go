@@ -142,7 +142,7 @@ func (c *PostgresCheck) Run(ctx context.Context, t *Target) (report.Status, stri
 		return report.StatusError, err.Error()
 	}
 	if code != 0 {
-		return report.StatusFail, fmt.Sprintf("dump %q failed to load into postgres: %s", c.Dump, tail(out, 3))
+		return report.StatusFail, fmt.Sprintf("dump %q failed to load into postgres: %s", c.Dump, diagnostic(out, 3))
 	}
 
 	for _, tbl := range c.Tables {
@@ -152,7 +152,7 @@ func (c *PostgresCheck) Run(ctx context.Context, t *Target) (report.Status, stri
 			return report.StatusError, err.Error()
 		}
 		if code != 0 {
-			return report.StatusFail, fmt.Sprintf("count rows in %q: %s", tbl.Name, tail(out, 2))
+			return report.StatusFail, fmt.Sprintf("count rows in %q: %s", tbl.Name, diagnostic(out, 2))
 		}
 		n, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
 		if err != nil {
