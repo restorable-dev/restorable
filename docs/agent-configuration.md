@@ -47,6 +47,7 @@ the test aborts with a clear error and nothing is restored.
 ## Read-only guarantee
 
 The agent only ever runs read operations against your repository: `version`,
-`snapshots`, `ls`, `restore`, `check`, `dump`. This whitelist is enforced in
+`snapshots`, `ls`, `restore`, `check`, `dump`, `cat`. This whitelist is
+enforced in
 the code's type system — the exec wrapper physically cannot run `forget`,
 `prune`, or anything else.

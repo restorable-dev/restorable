@@ -53,8 +53,12 @@ checks:
     checksum_sample: 5             # verify 5 random restored files against the repository
 ```
 
-Not sure what paths to assert? `restic ls latest | head -50` shows what's in
-your latest snapshot. Backing up Nextcloud, Vaultwarden, or Immich? Copy a
+Not sure what paths to assert? This shows what's in your latest snapshot:
+
+```sh
+restic -r /srv/backups/restic ls latest | head -50
+```
+ Backing up Nextcloud, Vaultwarden, or Immich? Copy a
 [ready-made recipe](../recipes/) instead.
 
 ## 3. Run your first test (1 min + restore time)
@@ -85,10 +89,12 @@ the number that matters on the day you actually need it.
 
 ## 4. Make it automatic (2 min)
 
-Cron (uses exit codes: 0 pass, 1 fail, 2 error):
+Cron (uses exit codes: 0 pass, 1 fail, 2 error). Results go to stdout and
+progress to stderr, so keep them apart and the results file stays one JSON
+object per run:
 
 ```
-0 3 * * 0  cd /etc/restorable && RESTIC_PASSWORD_FILE=/etc/restorable/pw restorable test --json >> /var/log/restorable.log 2>&1
+0 3 * * 0  RESTIC_PASSWORD="$(cat /etc/restorable/pw)" restorable test --config /etc/restorable/agent.yaml --json >> /var/log/restorable.jsonl 2>> /var/log/restorable.log
 ```
 
 Or run the built-in daemon — add `schedule: "0 3 * * 0"` to `agent.yaml` and:
@@ -99,11 +105,12 @@ restorable run
 
 ## 5. Optional: alerts + dashboard (3 min)
 
-Create an account on the dashboard, mint a registration token under
+Create an account at [restorable.dev](https://restorable.dev), mint a
+registration token under
 **Agents**, and connect:
 
 ```sh
-restorable register --url https://<dashboard> --token rrt_…
+restorable register --url https://restorable.dev --token rrt_…
 ```
 
 Every test now reports pass/fail metadata (never your data) to your

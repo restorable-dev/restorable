@@ -101,7 +101,7 @@ and `sqlite` don't.
 
 - **Read-only against your repository.** The agent shells out to *your*
   restic and can only run `version`, `snapshots`, `ls`, `restore`, `check`,
-  `dump` — the whitelist is enforced in the type system; `forget`/`prune`
+  `dump`, `cat`. The whitelist is enforced in the type system; `forget`/`prune`
   are a compile error, not a code-review promise.
 - **Sandboxes are always destroyed** — on success, failure, and panic. Disk
   space is checked *before* any restore begins.
@@ -115,20 +115,25 @@ and `sqlite` don't.
 
 The hosted dashboard adds run history across repos, alerting on failure,
 stale-backup detection (fires when your *testing* silently dies — the
-meta-failure). Free tier: 1 repo, monthly tests, 1 alert channel. Pro
-($8/mo or $80/yr): unlimited repos, any schedule, all channels, 12-month
-history (monthly confidence reports coming soon). The agent works forever
-without it.
+meta-failure).
+
+**It is all free during the open beta.** Every Pro feature, no card, no
+trial clock. The plans below are what it will cost when the beta ends.
+Free: 1 repo, monthly tests, 1 alert channel. Pro ($8/mo or $80/yr):
+unlimited repos, any schedule, all channels, 12-month history. The agent
+works forever without any of it.
 
 ## Docs
 
+[Quickstart](docs/quickstart.md) ·
 [Configuration](docs/agent-configuration.md) ·
 [Commands](docs/commands.md) ·
 [files](docs/recipes-files.md) ·
 [databases](docs/recipes-databases.md) ·
 [docker-app](docs/recipes-docker-app.md) ·
 [Alerts](docs/alerts.md) ·
-[Cloud](docs/cloud.md)
+[Cloud](docs/cloud.md) ·
+[Plans](docs/billing.md)
 
 ## Building from source
 

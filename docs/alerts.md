@@ -43,5 +43,8 @@ before it receives real alerts.
 
 ## Cron
 
-Stale and silent detection run from an hourly scheduled invocation of
-`/api/cron/alerts` (`vercel.json`), authenticated with `CRON_SECRET`.
+Stale and silent detection run from `/api/cron/alerts`, authenticated with
+`CRON_SECRET`. Two schedulers call it: a GitHub Actions workflow
+(`.github/workflows/cron-alerts.yml`) hourly, and a Vercel cron
+(`vercel.json`) daily as a backstop. If alerts seem late, check the Actions
+workflow first: scheduled workflows get disabled after repository inactivity.
