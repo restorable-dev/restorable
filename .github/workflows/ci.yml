@@ -84,7 +84,11 @@ jobs:
 
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # Pinned, not "latest". Resolving "latest" costs an unauthenticated
+          # GitHub API call that is rate limited per runner IP, and it failed
+          # exactly that way on a busy day. Pinning also stops a new CLI
+          # release from breaking CI with no commit to blame.
+          version: 2.117.0
 
       - name: Install restic
         run: |
