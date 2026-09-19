@@ -56,9 +56,17 @@ standalone and skip the cloud entirely.
 
 Strings go through scrubbing and redaction before they're logged or
 transmitted, including errors from cleanup failures. Credentials embedded in
-repository URLs are stripped before anything can reach a report, and output
-from database checks is stripped of the segments that echo row values, since a
-failed load quotes the data that failed.
+repository URLs are stripped before anything can reach a report.
+
+Output from database checks gets the same treatment, because a failed load
+quotes the data that failed: Postgres isolates row values in DETAIL and
+CONTEXT, MySQL inlines them in the error itself, and both are removed. Be
+aware this part is pattern matching against known shapes rather than a
+guarantee. It has been wrong twice, so assume a database engine can invent a
+new way to quote your data that we have not covered yet. If a database failure
+must never carry row values off the machine under any circumstances, run the
+agent standalone and skip the cloud. That is the only version of this promise
+that does not depend on us keeping up.
 
 The agent polls outbound over HTTPS and opens no inbound ports.
 
