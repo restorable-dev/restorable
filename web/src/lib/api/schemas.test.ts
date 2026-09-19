@@ -73,3 +73,34 @@ describe("registerRequestSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("restore_duration_ms sanity", () => {
+  const base = {
+    repo_fingerprint: "a".repeat(64),
+    repo_label: "/srv/backups/restic",
+    status: "pass" as const,
+    started_at: "2026-09-19T10:00:00.000Z",
+    finished_at: "2026-09-19T10:00:01.000Z", // a one-second run
+    agent_version: "v0.1.2",
+    checks: [],
+  };
+
+  it("rejects a restore longer than the run that contained it", () => {
+    // Previously accepted, and the dashboard rendered "1s · restore 10m" as
+    // the headline verified recovery time.
+    const r = runRequestSchema.safeParse({ ...base, restore_duration_ms: 600_000 });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts a restore that fits inside the run", () => {
+    expect(runRequestSchema.safeParse({ ...base, restore_duration_ms: 800 }).success).toBe(true);
+  });
+
+  it("allows a second of slack for clock granularity", () => {
+    expect(runRequestSchema.safeParse({ ...base, restore_duration_ms: 1500 }).success).toBe(true);
+  });
+
+  it("still accepts runs that omit it", () => {
+    expect(runRequestSchema.safeParse(base).success).toBe(true);
+  });
+});

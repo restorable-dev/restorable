@@ -104,3 +104,25 @@ func TestRedactForTransportBoundsLength(t *testing.T) {
 		t.Errorf("RedactForTransport did not bound length: %d chars", len(got))
 	}
 }
+
+// Docker client errors embed the daemon socket path, which on a desktop
+// install contains the operator's account name. This repo is published under a
+// pseudonym, so a username reaching the control plane is a real problem, not a
+// cosmetic one.
+func TestScrubDockerSocketPath(t *testing.T) {
+	in := `start container from mysql:8: Post "http://%2FUsers%2Fdbelle%2F.docker%2Frun%2Fdocker.sock/v1.48/containers/abc/start": terminated signal received`
+	got := Scrub(in)
+	if strings.Contains(got, "dbelle") {
+		t.Errorf("leaked the account name: %s", got)
+	}
+	for _, keep := range []string{"mysql:8", "terminated signal received"} {
+		if !strings.Contains(got, keep) {
+			t.Errorf("over-redacted, lost %q: %s", keep, got)
+		}
+	}
+	// A plain http URL that is not the docker socket must be untouched.
+	url := "checked https://example.com/v1/thing"
+	if Scrub(url) != url {
+		t.Errorf("rewrote an unrelated URL: %s", Scrub(url))
+	}
+}
