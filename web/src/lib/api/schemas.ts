@@ -46,6 +46,18 @@ export const runRequestSchema = z
   .refine(
     (r) => new Date(r.finished_at).getTime() >= new Date(r.started_at).getTime(),
     { message: "finished_at must not be before started_at" },
+  )
+  // The restore is a phase inside the run, so it cannot outlast it. Without
+  // this, a one-second run could claim a ten-minute restore and the dashboard
+  // would render exactly that as "verified recovery time", which is the number
+  // the whole product is sold on. One second of slack covers clock
+  // granularity between the two measurements.
+  .refine(
+    (r) =>
+      r.restore_duration_ms == null ||
+      r.restore_duration_ms <=
+        new Date(r.finished_at).getTime() - new Date(r.started_at).getTime() + 1000,
+    { message: "restore_duration_ms cannot exceed the run's wall-clock duration" },
   );
 
 export type RunRequest = z.infer<typeof runRequestSchema>;
