@@ -65,6 +65,18 @@ func TestRedactForTransportStripsDBDetail(t *testing.T) {
 			mustKeep: "dump failed",
 		},
 		{
+			name:     "mysql duplicate entry, value inline on the ERROR line",
+			msg:      `dump "db/my.sql" failed to load into mysql: ERROR 1062 (23000) at line 3: Duplicate entry 'alice@example.com' for key 'users.email'`,
+			mustHide: []string{"alice@example.com"},
+			mustKeep: "for key 'users.email'",
+		},
+		{
+			name:     "mysql incorrect value for column",
+			msg:      `load failed: ERROR 1366 (HY000) at line 2: Incorrect integer value: 'not-a-number-carol' for column 'age' at row 7`,
+			mustHide: []string{"not-a-number-carol"},
+			mustKeep: "for column 'age'",
+		},
+		{
 			name:     "mysql HINT",
 			msg:      `load failed / HINT:  row 4 value "carol@example.com" is invalid`,
 			mustHide: []string{"carol@example.com", "HINT"},
