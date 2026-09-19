@@ -81,6 +81,14 @@ func (r *Runner) env() []string {
 func (r *Runner) run(ctx context.Context, sub subcommand, out io.Writer, args ...string) error {
 	full := append([]string{string(sub), "--repo", r.repo}, args...)
 	cmd := exec.CommandContext(ctx, r.bin, full...)
+	// Without this, cancellation SIGKILLs restic, which then never releases
+	// the repository lock it took. The user's own `restic forget`/`prune`
+	// afterwards fails with "repository is already locked by PID ...", so a
+	// Ctrl-C here silently breaks their retention job. Interrupt instead, the
+	// way a real Ctrl-C would, and give restic a moment to unlock before the
+	// runtime forces the issue.
+	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	cmd.WaitDelay = 10 * time.Second
 	var stderr bytes.Buffer
 	cmd.Stdout = out
 	cmd.Stderr = &stderr
