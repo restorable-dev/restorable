@@ -81,6 +81,21 @@ var dbDetailRe = regexp.MustCompile(`(?i)^\s*(DETAIL|HINT|CONTEXT|LINE\s+\d+|Key
 // joined from, whichever joiner produced it.
 var segmentRe = regexp.MustCompile(`\n| / `)
 
+// mysqlRowValueRe matches the places MySQL inlines a value from the user's
+// data into an error.
+//
+// Postgres isolates row data in DETAIL and CONTEXT, so dropping whole segments
+// removes it. MySQL does not: it puts the offending value on the same ERROR
+// line as the reason ("Duplicate entry 'alice@example.com' for key
+// 'users.email'"), so segment filtering alone let it through. Dropping the
+// whole line instead would take the reason with it, which is the thing the
+// message exists to convey.
+//
+// Only the quoted value is replaced. The identifier after "for key" or "for
+// column" is schema rather than data, and naming the constraint that failed is
+// most of the diagnostic worth.
+var mysqlRowValueRe = regexp.MustCompile(`(?i)\b(Duplicate entry|value:)\s+'[^']*'`)
+
 // RedactForTransport prepares a check message to leave the machine. Check
 // messages are the one field that can embed raw command output from the
 // user's restored databases, so anything sent to the control plane is stripped
@@ -93,7 +108,8 @@ func RedactForTransport(msg string) string {
 			segs[i] = "[redacted]"
 		}
 	}
-	msg = Scrub(strings.Join(segs, " / "))
+	msg = mysqlRowValueRe.ReplaceAllString(strings.Join(segs, " / "), "$1 '[redacted]'")
+	msg = Scrub(msg)
 	const max = 500
 	if len(msg) > max {
 		msg = msg[:max] + "…"
