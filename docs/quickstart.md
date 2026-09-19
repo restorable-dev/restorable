@@ -90,11 +90,11 @@ the number that matters on the day you actually need it.
 ## 4. Make it automatic (2 min)
 
 Cron (uses exit codes: 0 pass, 1 fail, 2 error). Results go to stdout and
-progress to stderr, so keep them apart and the results file stays one JSON
-object per run:
+progress to stderr, so keep them apart and the results file collects one
+pretty-printed JSON object per run:
 
 ```
-0 3 * * 0  RESTIC_PASSWORD="$(cat /etc/restorable/pw)" restorable test --config /etc/restorable/agent.yaml --json >> /var/log/restorable.jsonl 2>> /var/log/restorable.log
+0 3 * * 0  RESTIC_PASSWORD="$(cat /etc/restorable/pw)" restorable test --config /etc/restorable/agent.yaml --json >> /var/log/restorable-results.json 2>> /var/log/restorable.log
 ```
 
 Or run the built-in daemon — add `schedule: "0 3 * * 0"` to `agent.yaml` and:

@@ -36,10 +36,14 @@ func TestTailOutputSurvivesTransportRedaction(t *testing.T) {
 			mustHide: []string{"a@example.com", "b@example.com"},
 		},
 		{
-			name: "mysql detail line",
+			// MySQL puts the row value on the ERROR line itself rather than in
+			// a DETAIL segment. An earlier version of this case carried
+			// dave@example.com in the input and never asserted it was hidden,
+			// so the suite stayed green while the address went out on the wire.
+			name: "mysql inlines the row value on the ERROR line",
 			raw: "ERROR 1062 (23000) at line 3: Duplicate entry 'dave@example.com' for key 'users.email'\n" +
 				"DETAIL:  row 3 rejected",
-			mustHide: []string{"row 3 rejected"},
+			mustHide: []string{"dave@example.com", "row 3 rejected"},
 		},
 	}
 
