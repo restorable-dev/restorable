@@ -58,12 +58,23 @@ type RunResult struct {
 // permits in rest:/s3: URLs) are fully masked, not partially.
 var credRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s]+@`)
 
-// Scrub masks credentials embedded in URLs anywhere in s. Repo strings and
-// error strings must pass through Scrub before entering a RunResult. The
-// regex is whitespace-bounded, so it can only ever over-mask within a token
-// (safe), never leak.
+// dockerSockRe matches the Docker daemon endpoint the client embeds in its
+// errors, e.g.
+//
+//	Post "http://%2FUsers%2Falice%2F.docker%2Frun%2Fdocker.sock/v1.48/…"
+//
+// That path contains the operator's account name, which has no business
+// travelling to the control plane or sitting in a log. Matching on the
+// docker.sock suffix keeps this from touching anything else.
+var dockerSockRe = regexp.MustCompile(`(?i)https?://[^/"\s]*docker\.sock`)
+
+// Scrub masks credentials embedded in URLs anywhere in s, and the local Docker
+// socket path. Repo strings and error strings must pass through Scrub before
+// entering a RunResult. The credential regex is whitespace-bounded, so it can
+// only ever over-mask within a token (safe), never leak.
 func Scrub(s string) string {
-	return credRe.ReplaceAllString(s, "${1}***@")
+	s = credRe.ReplaceAllString(s, "${1}***@")
+	return dockerSockRe.ReplaceAllString(s, "http://docker.sock")
 }
 
 // dbDetailRe matches the start of a message segment that echoes row values out

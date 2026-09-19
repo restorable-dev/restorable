@@ -7,6 +7,9 @@ package sandbox
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 // Sandbox is a disposable directory a snapshot is restored into.
@@ -33,11 +36,48 @@ func New(baseDir string, requiredBytes uint64) (*Sandbox, error) {
 			"insufficient disk space in %s: %s free, %s required — aborting before restore",
 			baseDir, humanBytes(free), humanBytes(requiredBytes))
 	}
+	reapOrphans(baseDir)
 	dir, err := os.MkdirTemp(baseDir, "restorable-")
 	if err != nil {
 		return nil, fmt.Errorf("create sandbox dir: %w", err)
 	}
 	return &Sandbox{dir: dir}, nil
+}
+
+// orphanAge is how old a sandbox must be before it is assumed abandoned. A
+// restore is bounded by disk and network, never by days, so this is far above
+// any legitimate run while still well inside "the user would rather not keep
+// their restored data lying around".
+const orphanAge = 24 * time.Hour
+
+// reapOrphans removes sandboxes left behind by runs that died outright.
+//
+// Destroy is deferred and survives panics, failures and signals, but nothing
+// survives SIGKILL, an OOM kill, or the power going out. Those leave a full
+// copy of the user's restored data on disk with no owner, which is both a disk
+// leak and a privacy problem, and no later run ever reclaimed it.
+//
+// Deliberately conservative, because this deletes directories: only entries
+// directly under the configured base dir, only ones matching the prefix this
+// package creates, and only after orphanAge, so a concurrent agent's live
+// sandbox is never a candidate. Failures are ignored; reaping is housekeeping
+// and must never be the reason a verification run cannot start.
+func reapOrphans(baseDir string) {
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-orphanAge)
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "restorable-") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(baseDir, e.Name()))
+	}
 }
 
 // Dir returns the sandbox directory path.
