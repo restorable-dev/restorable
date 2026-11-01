@@ -8,6 +8,7 @@ and adjust paths to how *your* backup is laid out.
   sqlite/postgres database checks, optional full app boot
 - [`vaultwarden.yaml`](vaultwarden.yaml) — vault database integrity + keys
 - [`immich.yaml`](immich.yaml) — media library + database dump load
+- [`forgejo.yaml`](forgejo.yaml) — default WORK_PATH and SQLite recovery checks
 
 Check-type reference: see
 [files](../docs/recipes-files.md),
