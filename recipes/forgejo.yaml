@@ -1,0 +1,24 @@
+# Forgejo restore verification.
+#
+# Assumes Restic backs up Forgejo's WORK_PATH and the instance uses the
+# default local SQLite database. Adjust paths to match app.ini and your
+# installation. This recipe does not verify external databases or object
+# storage.
+name: forgejo
+checks:
+  - type: files
+    require:
+      - path: custom/conf/app.ini
+      - path: data/forgejo.db
+    checksum_sample: 5
+
+  # Confirms the restored SQLite database is structurally readable.
+  - type: sqlite
+    path: data/forgejo.db
+
+  # If this instance has repositories and uses the default path, add this to
+  # the files check above. Do not require it for a deliberately empty instance.
+  #     - path: data/forgejo-repositories/
+
+  # For PostgreSQL, replace the SQLite check with a postgres check pointing at
+  # a SQL dump that is included in the Restic snapshot.

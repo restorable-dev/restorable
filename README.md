@@ -93,9 +93,9 @@ schedule in the config. That's it.
 | `docker-app` | The real app image boots against restored data and answers HTTP health checks |
 
 Ready-made recipes for [Nextcloud](recipes/nextcloud.yaml),
-[Vaultwarden](recipes/vaultwarden.yaml), and [Immich](recipes/immich.yaml)
-ship in [`/recipes`](recipes/). Database and app checks need Docker; `files`
-and `sqlite` don't.
+[Vaultwarden](recipes/vaultwarden.yaml), [Immich](recipes/immich.yaml), and
+[Forgejo variants](recipes/README.md) ship in [`/recipes`](recipes/). Database
+and app checks need Docker; `files` and `sqlite` don't.
 
 ## The guarantees
 
