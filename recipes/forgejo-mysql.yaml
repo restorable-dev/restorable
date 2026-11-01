@@ -1,0 +1,18 @@
+# Forgejo recovery checks when a MariaDB/MySQL dump is included in the Restic
+# snapshot. Adjust the dump path and image to match the source database.
+# This loads the SQL into a throwaway database and checks that at least one
+# Forgejo user exists; it does not start Forgejo or verify external storage.
+name: forgejo-mysql
+checks:
+  - type: files
+    require:
+      - path: custom/conf/app.ini
+      - path: database/forgejo.sql
+    checksum_sample: 5
+
+  - type: mysql
+    dump: database/forgejo.sql
+    image: mariadb:11
+    tables:
+      - name: user
+        min_rows: 1

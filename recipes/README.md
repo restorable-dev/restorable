@@ -10,6 +10,7 @@ and adjust paths to how *your* backup is laid out.
 - [`immich.yaml`](immich.yaml) — media library + database dump load
 - [`forgejo.yaml`](forgejo.yaml) — default WORK_PATH and SQLite recovery checks
 - [`forgejo-postgres.yaml`](forgejo-postgres.yaml) — Forgejo config and an included PostgreSQL dump
+- [`forgejo-mysql.yaml`](forgejo-mysql.yaml) — Forgejo config and a MariaDB/MySQL dump with a user-row assertion
 
 Check-type reference: see
 [files](../docs/recipes-files.md),
