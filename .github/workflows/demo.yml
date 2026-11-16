@@ -3,15 +3,17 @@ name: Demo
 # Records the terminal demo (docs/assets/demo.gif, demo.mp4) and a real
 # sample report (docs/assets/sample-report.json) from a synthetic Vaultwarden
 # fixture, then commits them. On a pull request that touches the demo, the
-# assets land on the PR branch; on a release or a manual run, on main.
+# assets land on the PR branch; on a version tag or a manual run, on main.
+# (It listens for the tag push, not the release: the release is created with
+# GITHUB_TOKEN, and events from that token never start other workflows.)
 
 on:
   pull_request:
     paths:
       - "demo/**"
       - ".github/workflows/demo.yml"
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -52,7 +54,7 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
           [ -n "$VERSION" ] || VERSION="$(git describe --tags 2>/dev/null || echo dev)"
           go build -trimpath -ldflags "-s -w -X github.com/restorable-dev/restorable/agent/cmd.version=${VERSION}" -o /tmp/restorable .
           sudo install -m 0755 /tmp/restorable /usr/local/bin/restorable
