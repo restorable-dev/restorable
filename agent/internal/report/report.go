@@ -1,6 +1,5 @@
 // Package report defines run result types, local human/JSON output, and the
 // scrubbing helpers that keep credentials out of anything the agent emits.
-// The control-plane client arrives in Phase 3.
 package report
 
 import (
@@ -36,16 +35,13 @@ type CheckResult struct {
 
 // RunResult is the outcome of one full restore-verification run.
 type RunResult struct {
-	AgentVersion string `json:"agent_version"`
-	Repo         string `json:"repo"`
-	// RepoFingerprint, when set, is the stable per-repository fingerprint
-	// (from restic's repo ID). Empty falls back to hashing the repo string.
-	RepoFingerprint string    `json:"-"`
-	SnapshotID      string    `json:"snapshot_id,omitempty"`
-	Status          Status    `json:"status"`
-	Error           string    `json:"error,omitempty"`
-	StartedAt       time.Time `json:"started_at"`
-	FinishedAt      time.Time `json:"finished_at"`
+	AgentVersion string    `json:"agent_version"`
+	Repo         string    `json:"repo"`
+	SnapshotID   string    `json:"snapshot_id,omitempty"`
+	Status       Status    `json:"status"`
+	Error        string    `json:"error,omitempty"`
+	StartedAt    time.Time `json:"started_at"`
+	FinishedAt   time.Time `json:"finished_at"`
 	// RestoreDurationMS is how long the restic restore itself took, separate
 	// from verification. Zero when the run failed before the restore finished.
 	RestoreDurationMS int64         `json:"restore_duration_ms,omitempty"`
@@ -64,7 +60,7 @@ var credRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s]+@`)
 //	Post "http://%2FUsers%2Falice%2F.docker%2Frun%2Fdocker.sock/v1.48/…"
 //
 // That path contains the operator's account name, which has no business
-// travelling to the control plane or sitting in a log. Matching on the
+// travelling in a notification or sitting in a log. Matching on the
 // docker.sock suffix keeps this from touching anything else.
 var dockerSockRe = regexp.MustCompile(`(?i)https?://[^/"\s]*docker\.sock`)
 
@@ -109,7 +105,7 @@ var mysqlRowValueRe = regexp.MustCompile(`(?i)\b(Duplicate entry|value:)\s+'[^']
 
 // RedactForTransport prepares a check message to leave the machine. Check
 // messages are the one field that can embed raw command output from the
-// user's restored databases, so anything sent to the control plane is stripped
+// user's restored databases, so anything sent in a notification is stripped
 // of DB detail segments, scrubbed of URL credentials, and length-bounded.
 // Local stdout keeps the full text.
 func RedactForTransport(msg string) string {

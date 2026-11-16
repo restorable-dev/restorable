@@ -56,6 +56,28 @@ func TestLoad(t *testing.T) {
 		{name: "bad size", yaml: "repo: /r\nsandbox:\n  min_free_space: lots\n", wantErr: "min_free_space"},
 		{name: "bad password env name", yaml: "repo: /r\npassword_env: \"1BAD-NAME\"\n", wantErr: "password_env"},
 		{name: "missing recipe file", yaml: "repo: /r\nrecipes: [nope.yaml]\n", wantErr: "recipe file"},
+		{
+			name: "notify defaults to failure-only",
+			yaml: "repo: /r\nnotify:\n  ntfy: https://ntfy.sh/topic\n",
+			check: func(t *testing.T, c *Config) {
+				if c.Notify.When != NotifyOnFailure {
+					t.Errorf("Notify.When = %q, want %q", c.Notify.When, NotifyOnFailure)
+				}
+			},
+		},
+		{
+			name: "notify with every endpoint",
+			yaml: "repo: /r\nnotify:\n  when: always\n  ntfy: https://ntfy.sh/topic\n  webhook: http://10.0.0.5:8080/hook\n  healthcheck: https://hc-ping.com/abc?create=1\n",
+			check: func(t *testing.T, c *Config) {
+				if c.Notify.When != NotifyAlways || c.Notify.Webhook == "" || c.Notify.Healthcheck == "" {
+					t.Errorf("Notify = %+v", c.Notify)
+				}
+			},
+		},
+		{name: "notify bad when", yaml: "repo: /r\nnotify:\n  when: sometimes\n", wantErr: "notify.when"},
+		{name: "notify bad scheme", yaml: "repo: /r\nnotify:\n  webhook: ftp://host/hook\n", wantErr: "notify.webhook"},
+		{name: "notify no host", yaml: "repo: /r\nnotify:\n  ntfy: https:///topic\n", wantErr: "notify.ntfy"},
+		{name: "notify relative URL", yaml: "repo: /r\nnotify:\n  healthcheck: hc-ping.com/abc\n", wantErr: "notify.healthcheck"},
 	}
 
 	for _, tt := range tests {
@@ -119,5 +141,24 @@ func TestParseSize(t *testing.T) {
 				t.Errorf("ParseSize(%q) = %d, want %d", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// A notify URL is a bearer secret, so a config error must name the field
+// without echoing the URL back into logs or terminal scrollback.
+func TestNotifyErrorsDoNotLeakURL(t *testing.T) {
+	const secret = "s3cr3t-ping-key"
+	for _, yaml := range []string{
+		"repo: /r\nnotify:\n  healthcheck: \"ftp://hc-ping.com/" + secret + "\"\n",
+		"repo: /r\nnotify:\n  healthcheck: \"https://hc ping.com/" + secret + "\"\n",
+		"repo: /r\nnotify:\n  webhook: \"/" + secret + "\"\n",
+	} {
+		_, err := Load(writeConfig(t, yaml))
+		if err == nil {
+			t.Fatalf("Load() succeeded for %q, want error", yaml)
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("error leaks the URL: %v", err)
+		}
 	}
 }

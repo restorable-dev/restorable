@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/restorable-dev/restorable/agent/internal/config"
+	"github.com/restorable-dev/restorable/agent/internal/notify"
 	"github.com/restorable-dev/restorable/agent/internal/verify"
 )
 
@@ -20,10 +21,8 @@ func (e *exitError) ExitCode() int { return e.code }
 
 func newTestCmd() *cobra.Command {
 	var (
-		cfgPath   string
-		jsonOut   bool
-		credsPath string
-		noReport  bool
+		cfgPath string
+		jsonOut bool
 	)
 	cmd := &cobra.Command{
 		Use:   "test",
@@ -40,12 +39,13 @@ func newTestCmd() *cobra.Command {
 			logf := func(format string, args ...any) {
 				cmd.PrintErrf(format+"\n", args...)
 			}
+			notifier := notify.New(cfg.Notify, logf)
+			notifier.Start(cmd.Context())
 			res := verify.Run(cmd.Context(), verify.Options{
 				Config:       cfg,
 				AgentVersion: version,
 				Logf:         logf,
 			})
-			maybeReport(cmd.Context(), credsPath, noReport, res, logf)
 			if jsonOut {
 				if err := res.WriteJSON(cmd.OutOrStdout()); err != nil {
 					return err
@@ -57,6 +57,9 @@ func newTestCmd() *cobra.Command {
 					return err
 				}
 			}
+			// After the verdict is printed: a slow endpoint should never hold
+			// it back, and a failed delivery never changes the exit code.
+			notifier.Finish(cmd.Context(), res)
 			if code := res.ExitCode(); code != 0 {
 				return &exitError{code: code}
 			}
@@ -65,7 +68,6 @@ func newTestCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "agent.yaml", "path to agent config file")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit the result as JSON on stdout")
-	cmd.Flags().StringVar(&credsPath, "credentials", "", "cloud credentials file (default: user config dir)")
-	cmd.Flags().BoolVar(&noReport, "no-report", false, "skip reporting this run to the control plane")
+	addRetiredCloudFlags(cmd)
 	return cmd
 }

@@ -101,6 +101,9 @@ recipes: [%s]
 # schedule: "0 3 * * 0"   # uncomment for `+"`restorable run`"+` (weekly, Sundays 3am)
 sandbox:
   dir: ""                 # OS temp dir; point at a bigger volume if needed
+# notify:                 # optional: hear about failures (see docs/notifications.md)
+#   ntfy: https://ntfy.sh/<unguessable-topic>
+#   healthcheck: https://hc-ping.com/<uuid>
 `, repo, passwordEnv, recipeName)
 
 			if err := os.WriteFile(recipePath, []byte(sug.RecipeYAML), 0o644); err != nil {
