@@ -8,9 +8,9 @@ Require restorable
 Require restic
 
 Set Shell "bash"
-Set FontSize 18
-Set Width 1280
-Set Height 820
+Set FontSize 17
+Set Width 1440
+Set Height 760
 Set Padding 30
 Set TypingSpeed 40ms
 Set Theme { "name": "Restorable", "black": "#151518", "red": "#E63B5A", "green": "#7FC88A", "yellow": "#E8C37A", "blue": "#8AAFE0", "magenta": "#C792C6", "cyan": "#7FC4C8", "white": "#F2E9D8", "brightBlack": "#6F6A62", "brightRed": "#FF5C77", "brightGreen": "#9EE0A8", "brightYellow": "#F5D79A", "brightBlue": "#A9C6F0", "brightMagenta": "#DDB0DC", "brightCyan": "#9ED9DC", "brightWhite": "#FFFFFF", "background": "#0B0B0D", "foreground": "#F2E9D8", "selection": "#3A1A22", "cursor": "#E63B5A" }
@@ -32,7 +32,7 @@ Type "restorable init --repo /srv/backups/restic --yes"
 Sleep 400ms
 Enter
 Wait@60s /\$\s*$/
-Sleep 4s
+Sleep 6s
 
 Type "clear"
 Enter
@@ -55,4 +55,4 @@ Wait@60s /\$\s*$/
 Sleep 1s
 Type "echo exit code $?"
 Enter
-Sleep 5s
+Sleep 7s
