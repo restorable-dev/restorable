@@ -31,7 +31,7 @@ Sleep 900ms
 Type "restorable init --repo /srv/backups/restic --yes"
 Sleep 400ms
 Enter
-Wait@60s
+Wait@60s /\$\s*$/
 Sleep 4s
 
 Type "clear"
@@ -42,7 +42,7 @@ Sleep 600ms
 Type "truncate -s 64K /srv/vaultwarden/db.sqlite3 && restic backup -q -r /srv/backups/restic /srv/vaultwarden"
 Sleep 400ms
 Enter
-Wait@60s
+Wait@60s /\$\s*$/
 Sleep 800ms
 
 Type "# restic says the backup succeeded. Restorable restores it and checks."
@@ -51,7 +51,7 @@ Sleep 700ms
 Type "restorable test --config agent.yaml"
 Sleep 400ms
 Enter
-Wait@60s
+Wait@60s /\$\s*$/
 Sleep 1s
 Type "echo exit code $?"
 Enter
