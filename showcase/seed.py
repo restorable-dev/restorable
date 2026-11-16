@@ -74,14 +74,14 @@ for week in range(11, -1, -1):
     restore = int(3100 + (11 - week) * 60 + random.randint(-200, 200))
     if week == 5:
         res = [
-            check("vaultwarden", "files", "pass", "2 required path(s) present, 5 sampled checksum(s) match repository", 41),
-            check("vaultwarden", "sqlite", "fail", '"db.sqlite3" failed integrity_check: database disk image is malformed', 12),
+            check("vaultwarden", "files", "pass", "5 required path(s) present, 3 sampled checksum(s) match repository", 2132),
+            check("vaultwarden", "sqlite", "fail", '"db.sqlite3" is not a usable SQLite database: database disk image is malformed (11)', 0),
         ]
         status = "fail"
     else:
         res = [
-            check("vaultwarden", "files", "pass", "2 required path(s) present, 5 sampled checksum(s) match repository", random.randint(30, 60)),
-            check("vaultwarden", "sqlite", "pass", '"db.sqlite3" passes integrity_check', random.randint(9, 20)),
+            check("vaultwarden", "files", "pass", "5 required path(s) present, 3 sampled checksum(s) match repository", random.randint(1900, 2300)),
+            check("vaultwarden", "sqlite", "pass", '"db.sqlite3" passes integrity_check', random.randint(2, 9)),
         ]
         status = "pass"
     runs.append(("vault", str(uuid.uuid4()), start, start + timedelta(milliseconds=restore + 900), status, None, res, restore))
@@ -91,8 +91,8 @@ for week in range(11, -1, -1):
     restore = int(41000 + (11 - week) * 1650 + random.randint(-900, 900))
     boot = random.randint(38000, 52000)
     res = [
-        check("nextcloud", "files", "pass", "config/config.php present, 5 sampled checksum(s) match repository", random.randint(300, 600)),
-        check("nextcloud", "docker-app", "pass", "nextcloud:apache booted against restored data; /status.php reports installed", boot),
+        check("nextcloud", "files", "pass", "2 required path(s) present, 3 sampled checksum(s) match repository", random.randint(2400, 3600)),
+        check("nextcloud", "docker-app", "pass", "nextcloud:apache serves HTTP 200 on /status.php with restored data", boot),
     ]
     runs.append(("cloud", str(uuid.uuid4()), s2, s2 + timedelta(milliseconds=restore + boot + 2000), "pass", None, res, restore))
 
@@ -101,15 +101,14 @@ for week in range(11, -1, -1):
     restore = int(18500 + (11 - week) * 400 + random.randint(-600, 600))
     if week == 0:
         res = [
-            check("immich", "files", "pass", "library/ and upload/ present, 5 sampled checksum(s) match repository", 820),
-            check("immich", "postgres", "fail", "pg_restore failed: input file appears to be truncated (dump ends mid-COPY in table assets)", 6400),
+            check("immich", "files", "pass", "2 required path(s) present, 3 sampled checksum(s) match repository", 3120),
+            check("immich", "postgres", "fail", 'dump "backups/immich-db-backup-20261115T030000.sql.gz" failed to load into postgres: unexpected EOF', 6400),
         ]
         status = "fail"
     else:
-        rows = 48210 + (11 - week) * 310
         res = [
-            check("immich", "files", "pass", "library/ and upload/ present, 5 sampled checksum(s) match repository", random.randint(700, 900)),
-            check("immich", "postgres", "pass", f"dump loaded; assets has {rows} rows (min 40000)", random.randint(9000, 14000)),
+            check("immich", "files", "pass", "2 required path(s) present, 3 sampled checksum(s) match repository", random.randint(2800, 3400)),
+            check("immich", "postgres", "pass", "dump loaded into postgres:16-alpine, 1 table assertion(s) hold", random.randint(9000, 14000)),
         ]
         status = "pass"
     runs.append(("photos", str(uuid.uuid4()), s3, s3 + timedelta(milliseconds=restore + 15000), status, None, res, restore))

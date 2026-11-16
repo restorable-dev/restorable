@@ -38,7 +38,11 @@ with sync_playwright() as p:
         for name, path in pages:
             page.goto(base + path, wait_until="networkidle")
             page.wait_for_timeout(800)
-            page.screenshot(path=str(out / f"{name}-{scale_name}.png"), full_page=True)
+            # Clip to the content, not the viewport: these pages are short.
+            height = page.evaluate("Math.ceil(document.querySelector('main, body').getBoundingClientRect().bottom) + 48")
+            page.set_viewport_size({"width": viewport["width"], "height": max(480, min(height, 2400))})
+            page.screenshot(path=str(out / f"{name}-{scale_name}.png"), full_page=False)
+            page.set_viewport_size(viewport)
             print("captured", name, scale_name)
         ctx.close()
     browser.close()
