@@ -2,6 +2,8 @@
 
 > A backup you've never restored is a hope, not a backup.
 
+![Restorable restoring a Vaultwarden backup: a good snapshot passes, then a half-copied database that restic happily backed up fails the check](docs/assets/demo.gif)
+
 Your backups run every night. **Restorable proves they'd actually restore.**
 On a schedule, it restores your latest restic snapshot into a disposable
 sandbox, verifies the data actually works — files present, databases load,

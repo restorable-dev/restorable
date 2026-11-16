@@ -1,0 +1,25 @@
+{
+  "agent_version": "v0.1.2-9-ge1229e9",
+  "repo": "/srv/backups/restic",
+  "snapshot_id": "a7fee3b5997e0731ddf1d8065f72872c4458f456f414b8f767a1c12dfed6d562",
+  "status": "pass",
+  "started_at": "2026-11-16T18:41:34.242456951Z",
+  "finished_at": "2026-11-16T18:41:37.80987776Z",
+  "restore_duration_ms": 719,
+  "checks": [
+    {
+      "recipe": "vaultwarden",
+      "type": "files",
+      "status": "pass",
+      "message": "5 required path(s) present, 3 sampled checksum(s) match repository",
+      "duration_ms": 2141
+    },
+    {
+      "recipe": "vaultwarden",
+      "type": "sqlite",
+      "status": "pass",
+      "message": "\"db.sqlite3\" passes integrity_check",
+      "duration_ms": 2
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+name: Demo
+
+# Records the terminal demo (docs/assets/demo.gif, demo.mp4) and a real
+# sample report (docs/assets/sample-report.json) from a synthetic Vaultwarden
+# fixture, then commits them. On a pull request that touches the demo, the
+# assets land on the PR branch; on a version tag or a manual run, on main.
+# (It listens for the tag push, not the release: the release is created with
+# GITHUB_TOKEN, and events from that token never start other workflows.)
+
+on:
+  pull_request:
+    paths:
+      - "demo/**"
+      - ".github/workflows/demo.yml"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: demo-${{ github.head_ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    name: Record demo and sample report
+    # Fork PRs get a read-only token and cannot push the assets back.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      RESTIC_VERSION: 0.18.0
+      RESTIC_PASSWORD: demo-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || 'main' }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+
+      - name: Install restic
+        run: |
+          curl -fsSL -o restic.bz2 \
+            "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2"
+          bunzip2 restic.bz2 && chmod +x restic && sudo mv restic /usr/local/bin/restic
+
+      - name: Build and install the agent
+        working-directory: agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+          [ -n "$VERSION" ] || VERSION="$(git describe --tags 2>/dev/null || echo dev)"
+          go build -trimpath -ldflags "-s -w -X github.com/restorable-dev/restorable/agent/cmd.version=${VERSION}" -o /tmp/restorable .
+          sudo install -m 0755 /tmp/restorable /usr/local/bin/restorable
+          restorable version
+
+      # The recording can't assert anything, so prove the story first on a
+      # scratch copy: a good snapshot passes, a half-copied database fails
+      # with exit 1. If either is false the job stops before recording.
+      - name: Dry run the demo scenario
+        run: |
+          demo/setup.sh /tmp/check
+          mkdir -p /tmp/check/run && cd /tmp/check/run
+          restorable init --repo /tmp/check/backups/restic --yes > pass.out 2>&1 || { cat pass.out; exit 1; }
+          cat pass.out
+          grep -q "restorable: PASS" pass.out
+          truncate -s 64K /tmp/check/vaultwarden/db.sqlite3
+          restic backup -q -r /tmp/check/backups/restic /tmp/check/vaultwarden
+          set +e
+          restorable test --config agent.yaml > fail.out 2>&1
+          code=$?
+          set -e
+          cat fail.out
+          [ "$code" = 1 ] || { echo "expected exit 1 after the broken backup, got $code"; exit 1; }
+          grep -q "✗ vaultwarden/sqlite" fail.out
+
+      - name: Build the fixture under /srv
+        run: |
+          sudo mkdir -p /srv && sudo chown "$USER" /srv
+          demo/setup.sh /srv
+          mkdir -p /srv/demo
+
+      - name: Write the sample report (before the recording breaks the backup)
+        run: |
+          mkdir -p /tmp/report docs/assets
+          (cd /tmp/report && restorable init --repo /srv/backups/restic --yes > /dev/null 2>&1)
+          restorable test --config /tmp/report/agent.yaml --json > docs/assets/sample-report.json
+          python3 -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['status']=='pass', r['status']" docs/assets/sample-report.json
+          cat docs/assets/sample-report.json
+
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/demo.tape
+
+      - name: Commit the assets
+        env:
+          TARGET: ${{ github.head_ref || 'main' }}
+        run: |
+          ls -la docs/assets
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/demo.gif docs/assets/demo.mp4 docs/assets/sample-report.json
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs: refresh demo recording and sample report"
+          git push origin "HEAD:${TARGET}"
