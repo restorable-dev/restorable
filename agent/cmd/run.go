@@ -10,16 +10,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/restorable-dev/restorable/agent/internal/config"
-	"github.com/restorable-dev/restorable/agent/internal/report"
+	"github.com/restorable-dev/restorable/agent/internal/notify"
 	"github.com/restorable-dev/restorable/agent/internal/verify"
 )
 
 func newRunCmd() *cobra.Command {
 	var (
-		cfgPath   string
-		jsonOut   bool
-		credsPath string
-		noReport  bool
+		cfgPath string
+		jsonOut bool
 	)
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -39,15 +37,16 @@ func newRunCmd() *cobra.Command {
 
 			logger := log.New(os.Stderr, "restorable ", log.LstdFlags)
 			ctx := cmd.Context()
+			notifier := notify.New(cfg.Notify, logger.Printf)
 
 			doRun := func() {
 				logger.Printf("starting restore test")
+				notifier.Start(ctx)
 				res := verify.Run(ctx, verify.Options{
 					Config:       cfg,
 					AgentVersion: version,
 					Logf:         logger.Printf,
 				})
-				maybeReport(ctx, credsPath, noReport, res, logger.Printf)
 				if jsonOut {
 					if err := res.WriteJSON(cmd.OutOrStdout()); err != nil {
 						logger.Printf("write result: %v", err)
@@ -59,6 +58,7 @@ func newRunCmd() *cobra.Command {
 						logger.Printf("write result: %v", err)
 					}
 				}
+				notifier.Finish(ctx, res)
 				logger.Printf("restore test finished: %s", res.Status)
 			}
 
@@ -72,11 +72,7 @@ func newRunCmd() *cobra.Command {
 			}
 			c.Start()
 			logger.Printf("scheduler started (schedule %q), next run %s", cfg.Schedule, c.Entry(id).Next)
-
-			if creds := loadCredentialsQuiet(credsPath); creds != nil && !noReport {
-				logger.Printf("registered with %s, heartbeating every %s", creds.URL, heartbeatInterval)
-				go heartbeatLoop(ctx, report.NewClient(creds), logger.Printf)
-			}
+			logger.Printf("notifications: %s", notifier.Describe())
 
 			<-ctx.Done()
 			logger.Printf("shutting down, waiting for any running test to finish")
@@ -86,7 +82,6 @@ func newRunCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "agent.yaml", "path to agent config file")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit each result as JSON on stdout")
-	cmd.Flags().StringVar(&credsPath, "credentials", "", "cloud credentials file (default: user config dir)")
-	cmd.Flags().BoolVar(&noReport, "no-report", false, "never report runs to the control plane")
+	addRetiredCloudFlags(cmd)
 	return cmd
 }

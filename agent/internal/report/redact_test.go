@@ -107,7 +107,7 @@ func TestRedactForTransportBoundsLength(t *testing.T) {
 
 // Docker client errors embed the daemon socket path, which on a desktop
 // install contains the operator's account name. This repo is published under a
-// pseudonym, so a username reaching the control plane is a real problem, not a
+// pseudonym, so a username reaching a notification is a real problem, not a
 // cosmetic one.
 func TestScrubDockerSocketPath(t *testing.T) {
 	in := `start container from mysql:8: Post "http://%2FUsers%2Fdbelle%2F.docker%2Frun%2Fdocker.sock/v1.48/containers/abc/start": terminated signal received`

@@ -6,8 +6,11 @@
 #   2. `restorable test` FAILS when a recipe assertion breaks    (exit 1)
 #   3. `restorable test` ERRORS against a corrupted repo         (exit 2)
 #   4. the sandbox directory is empty after every run, including failures
+#   5. notify: pings the healthcheck (/start, /fail, bare URL on pass) and
+#      pushes to ntfy only on failure by default
 #
-# Requirements: go (to build the agent) and restic. No Docker, no network.
+# Requirements: go (to build the agent), restic and python3 (a local fake
+# notification endpoint). No Docker, no network beyond localhost.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -136,6 +139,63 @@ env -u RESTIC_PASSWORD "$BIN" test --config "$WORK/agent-good.yaml" && fail "exp
   got=$?
   [ "$got" -eq 2 ] || fail "expected exit 2 without password, got $got"
 }
+assert_sandbox_empty
+
+log "case 5: notify pings the healthcheck and pushes to ntfy on failure"
+HOOK_LOG="$WORK/hook.log"
+HOOK_PORT_FILE="$WORK/hook.port"
+: > "$HOOK_LOG"
+python3 - "$HOOK_LOG" > "$HOOK_PORT_FILE" <<'PY' &
+import http.server, sys
+log_path = sys.argv[1]
+class Hook(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(n).decode("utf-8", "replace").replace("\n", " ")
+        with open(log_path, "a") as f:
+            f.write(f"{self.path} | {self.headers.get('Priority') or '-'} | {body}\n")
+        self.send_response(200)
+        self.end_headers()
+    def log_message(self, *args):
+        pass
+srv = http.server.HTTPServer(("127.0.0.1", 0), Hook)
+print(srv.server_address[1], flush=True)
+srv.serve_forever()
+PY
+HOOK_PID=$!
+trap 'kill "$HOOK_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+for _ in $(seq 1 50); do [ -s "$HOOK_PORT_FILE" ] && break; sleep 0.1; done
+HOOK="http://127.0.0.1:$(cat "$HOOK_PORT_FILE")"
+
+cat > "$WORK/agent-notify-broken.yaml" <<EOF
+repo: $GOOD
+recipes: [recipe-broken.yaml]
+sandbox:
+  dir: $SANDBOX
+notify:
+  ntfy: $HOOK/topic
+  healthcheck: $HOOK/ping/e2e
+EOF
+expect_exit 1 "$BIN" test --config "$WORK/agent-notify-broken.yaml"
+grep -q '^/ping/e2e/start ' "$HOOK_LOG" || fail "no start ping: $(cat "$HOOK_LOG")"
+grep -q '^/ping/e2e/fail .*FAIL' "$HOOK_LOG" || fail "no fail ping: $(cat "$HOOK_LOG")"
+grep -q '^/topic | high | .*does/not/exist.txt' "$HOOK_LOG" || fail "no high-priority ntfy push: $(cat "$HOOK_LOG")"
+assert_sandbox_empty
+
+log "case 5b: a pass pings the bare URL, skips ntfy, and v0.1 cloud flags still parse"
+: > "$HOOK_LOG"
+cat > "$WORK/agent-notify-good.yaml" <<EOF
+repo: $GOOD
+recipes: [recipe.yaml]
+sandbox:
+  dir: $SANDBOX
+notify:
+  ntfy: $HOOK/topic
+  healthcheck: $HOOK/ping/e2e
+EOF
+expect_exit 0 "$BIN" test --config "$WORK/agent-notify-good.yaml" --no-report
+grep -q '^/ping/e2e | .*PASS' "$HOOK_LOG" || fail "no success ping: $(cat "$HOOK_LOG")"
+if grep -q '^/topic' "$HOOK_LOG"; then fail "ntfy pushed on a pass with when: failure"; fi
 assert_sandbox_empty
 
 log "all e2e cases passed"

@@ -7,12 +7,6 @@
 *.test
 *.out
 
-# Node / Next.js
-node_modules/
-/web/.next/
-/web/out/
-next-env.d.ts
-
 # Env and secrets — never commit
 .env
 .env.*
@@ -22,7 +16,6 @@ next-env.d.ts
 .DS_Store
 .idea/
 .vscode/
-.vercel
 
 # Internal docs — kept local, never published
 /SPEC.md

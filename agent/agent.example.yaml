@@ -23,3 +23,17 @@ sandbox:
   dir: ""
   # Extra free-space requirement on top of the estimated snapshot size.
   min_free_space: "1GiB"
+
+# Optional: where to hear about results. The URLs are secrets (anyone who
+# has one can post to it), which is one more reason this file is owner-only.
+# See docs/notifications.md.
+notify:
+  # Send ntfy/webhook messages on "failure" (default) or "always".
+  when: failure
+  # Push to your phone via ntfy. Pick an unguessable topic, or self-host.
+  ntfy: ""
+  # POST a JSON summary of the run to any URL.
+  webhook: ""
+  # Healthchecks.io-style ping: /start, then the URL on pass or /fail on
+  # failure. If pings stop arriving, the monitor alerts you.
+  healthcheck: ""

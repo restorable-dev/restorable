@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Proves the agent works against an S3 backend (the most common remote restic
 # repo — covers AWS S3, MinIO, Wasabi, and Backblaze B2's S3 API). Uses a
-# throwaway MinIO container as the S3 endpoint.
+# throwaway SeaweedFS container as the S3 endpoint. (It used MinIO until MinIO
+# withdrew its public images from Docker Hub and quay.io in September 2026.)
 #
 # Requirements: go, restic, docker, aws CLI, python3.
 set -euo pipefail
@@ -15,18 +16,24 @@ trap cleanup EXIT
 log()  { printf '\n==> %s\n' "$*"; }
 fail() { printf 'E2E FAIL: %s\n' "$*" >&2; exit 1; }
 
-log "starting MinIO (S3 endpoint)"
-docker run -d --name "$NAME" -p 9101:9000 \
-  -e MINIO_ROOT_USER=testaccess -e MINIO_ROOT_PASSWORD=testsecret123 \
-  quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data >/dev/null
-for i in $(seq 1 30); do
-  curl -sf -o /dev/null http://localhost:9101/minio/health/live && break
-  sleep 1
-  [ "$i" = 30 ] && fail "MinIO did not come up"
-done
-
+log "starting SeaweedFS (S3 endpoint)"
 export AWS_ACCESS_KEY_ID=testaccess AWS_SECRET_ACCESS_KEY=testsecret123 AWS_DEFAULT_REGION=us-east-1
-aws --endpoint-url http://localhost:9101 s3 mb s3://backups >/dev/null
+# The same keys the clients sign with: newer SeaweedFS releases enforce them,
+# older ones run open. Either way the requests below succeed.
+docker run -d --name "$NAME" -p 9101:8333 \
+  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+  chrislusf/seaweedfs:4.22 \
+  server -s3 -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=256 >/dev/null
+# master, volume, filer and s3 start in sequence; the bucket call is the
+# readiness check that matters.
+for i in $(seq 1 60); do
+  aws --endpoint-url http://localhost:9101 s3 mb s3://backups >/dev/null 2>&1 && break
+  sleep 1
+  if [ "$i" = 60 ]; then
+    docker logs --tail 50 "$NAME" >&2 || true
+    fail "SeaweedFS S3 endpoint did not come up"
+  fi
+done
 
 log "building agent + fixture"
 BIN="$WORK/restorable"

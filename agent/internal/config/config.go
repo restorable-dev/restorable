@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,6 +35,8 @@ type Config struct {
 	Recipes []string `yaml:"recipes"`
 	// Sandbox configures where restore sandboxes are created.
 	Sandbox SandboxConfig `yaml:"sandbox"`
+	// Notify sends each run's outcome somewhere you will see it.
+	Notify NotifyConfig `yaml:"notify"`
 }
 
 // SandboxConfig controls sandbox placement and the disk-space pre-flight.
@@ -44,6 +47,34 @@ type SandboxConfig struct {
 	// free in Dir before a restore starts, in addition to the estimated
 	// snapshot size.
 	MinFreeSpace string `yaml:"min_free_space"`
+}
+
+// Values for notify.when.
+const (
+	// NotifyOnFailure sends ntfy and webhook messages only when a run fails
+	// or cannot complete. It is the default.
+	NotifyOnFailure = "failure"
+	// NotifyAlways sends ntfy and webhook messages after every run.
+	NotifyAlways = "always"
+)
+
+// NotifyConfig lists where run outcomes go. Every endpoint is optional; with
+// none set, the agent reports only through stdout and its exit code.
+//
+// The URLs are bearer secrets (anyone holding a ping URL or ntfy topic can
+// post to it), so they are never logged.
+type NotifyConfig struct {
+	// When selects which runs trigger ntfy and webhook messages: "failure"
+	// (default) or "always". The healthcheck ping fires on every run either
+	// way, because a missing ping is how a dead agent gets noticed.
+	When string `yaml:"when"`
+	// Ntfy is an ntfy topic URL, such as https://ntfy.sh/<unguessable-topic>.
+	Ntfy string `yaml:"ntfy"`
+	// Webhook receives a JSON summary of the run by POST.
+	Webhook string `yaml:"webhook"`
+	// Healthcheck is a Healthchecks.io-style ping URL: /start when a run
+	// begins, the bare URL on pass, /fail on a failed or incomplete run.
+	Healthcheck string `yaml:"healthcheck"`
 }
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -75,6 +106,9 @@ func Load(path string) (*Config, error) {
 
 	if cfg.PasswordEnv == "" {
 		cfg.PasswordEnv = DefaultPasswordEnv
+	}
+	if cfg.Notify.When == "" {
+		cfg.Notify.When = NotifyOnFailure
 	}
 	base := filepath.Dir(path)
 	for i, r := range cfg.Recipes {
@@ -110,6 +144,42 @@ func (c *Config) validate() error {
 		if _, err := os.Stat(r); err != nil {
 			return fmt.Errorf("recipe file %s: %w", r, err)
 		}
+	}
+	return c.Notify.validate()
+}
+
+func (n *NotifyConfig) validate() error {
+	if n.When != NotifyOnFailure && n.When != NotifyAlways {
+		return fmt.Errorf("notify.when %q must be %q or %q", n.When, NotifyOnFailure, NotifyAlways)
+	}
+	endpoints := []struct{ key, value string }{
+		{"notify.ntfy", n.Ntfy},
+		{"notify.webhook", n.Webhook},
+		{"notify.healthcheck", n.Healthcheck},
+	}
+	for _, e := range endpoints {
+		if e.value == "" {
+			continue
+		}
+		if err := checkEndpoint(e.value); err != nil {
+			return fmt.Errorf("%s: %w", e.key, err)
+		}
+	}
+	return nil
+}
+
+// checkEndpoint accepts absolute http(s) URLs. Its errors never quote the URL,
+// because the URL is the secret.
+func checkEndpoint(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return errors.New("not a valid URL")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return errors.New("URL has no host")
 	}
 	return nil
 }
