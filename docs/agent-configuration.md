@@ -34,6 +34,14 @@ sandbox:
   # Extra free-space floor for the pre-flight disk check, on top of the
   # estimated snapshot size (accepts 500MB, 2GiB, ...).
   min_free_space: "1GiB"
+
+# Optional. Where to hear about results; see notifications.md. Every URL is
+# a secret and is never logged. http and https only.
+notify:
+  when: failure                              # or "always" (default: failure)
+  ntfy: https://ntfy.sh/<unguessable-topic>  # phone push
+  webhook: https://example.com/hook          # POST of a JSON summary
+  healthcheck: https://hc-ping.com/<uuid>    # pinged on every run
 ```
 
 ## Disk-space pre-flight

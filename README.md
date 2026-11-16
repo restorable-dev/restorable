@@ -21,9 +21,13 @@ restorable: PASS
 
 Works fully standalone — single binary, no account, cron-friendly exit codes.
 Because every test is a real restore, you also get your **measured recovery
-time** — how long being back online actually takes, not a guess. An optional
-cloud dashboard adds scheduling history, recovery-time tracking, stale-backup
-detection, and alerts (Telegram, Discord, ntfy, email).
+time** — how long being back online actually takes, not a guess. Optional
+notifications push failures to your phone and catch the agent itself going
+quiet.
+
+Free and open source (MIT). There's no hosted service and no account: the
+hosted dashboard from v0.1 was retired in v0.2.0, and its alerting and
+dead-agent detection now run from the agent itself.
 
 ## Why
 
@@ -105,23 +109,24 @@ and `sqlite` don't.
   are a compile error, not a code-review promise.
 - **Sandboxes are always destroyed** — on success, failure, and panic. Disk
   space is checked *before* any restore begins.
-- **Your data never leaves your machine.** Standalone mode talks to nobody.
-  Cloud mode reports only pass/fail metadata: a repository fingerprint
-  (SHA-256 of the credential-scrubbed location), snapshot IDs, check
-  results, timings. Never file contents, never passwords. The agent is
-  pull-based over HTTPS and listens on no ports.
+- **Your data never leaves your machine.** With no `notify:` block the agent
+  talks to nothing but your repository. With one, it sends a redacted run
+  summary only to the URLs you configured. Never file contents, never
+  passwords, and it listens on no ports.
 
-## Cloud dashboard (optional)
+## Notifications (optional)
 
-The hosted dashboard adds run history across repos, alerting on failure,
-stale-backup detection (fires when your *testing* silently dies — the
-meta-failure).
+```yaml
+notify:
+  ntfy: https://ntfy.sh/<long-random-topic>   # push on failure
+  webhook: https://example.com/hook           # JSON summary on failure
+  healthcheck: https://hc-ping.com/<uuid>     # pinged every run
+```
 
-**It is all free during the open beta.** Every Pro feature, no card, no
-trial clock. The plans below are what it will cost when the beta ends.
-Free: 1 repo, monthly tests, 1 alert channel. Pro ($8/mo or $80/yr):
-unlimited repos, any schedule, all channels, 12-month history. The agent
-works forever without any of it.
+The healthcheck ping is the one to set up first. Failure alerts can't tell
+you that tests stopped running at all; a dead-man's-switch monitor like
+[Healthchecks.io](https://healthchecks.io) can. See
+[notifications](docs/notifications.md).
 
 ## Docs
 
@@ -131,9 +136,8 @@ works forever without any of it.
 [files](docs/recipes-files.md) ·
 [databases](docs/recipes-databases.md) ·
 [docker-app](docs/recipes-docker-app.md) ·
-[Alerts](docs/alerts.md) ·
-[Cloud](docs/cloud.md) ·
-[Plans](docs/billing.md)
+[Notifications](docs/notifications.md) ·
+[Security](SECURITY.md)
 
 ## Building from source
 
@@ -142,9 +146,9 @@ git clone https://github.com/restorable-dev/restorable && cd restorable/agent
 go build -o restorable .
 ```
 
-Repo layout: [`/agent`](agent/) Go agent · [`/web`](web/) control plane
-(Next.js + Supabase) · [`/recipes`](recipes/) shipped recipes ·
-[`/docs`](docs/) documentation.
+Repo layout: [`/agent`](agent/) Go agent · [`/recipes`](recipes/) shipped
+recipes · [`/docs`](docs/) documentation. The retired dashboard (`web/`) is in
+git history before v0.2.0.
 
 ## License
 

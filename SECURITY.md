@@ -20,8 +20,8 @@ and leave the details out.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | Yes       |
-| < 0.1.1 | No        |
+| 0.2.x   | Yes       |
+| 0.1.x   | No: upgrade (the hosted dashboard it reported to is gone) |
 
 Anything before v0.1.1 was built with a Go toolchain carrying known stdlib
 vulnerabilities, and those releases have been pulled. There's no auto-update by
@@ -42,17 +42,19 @@ guarantee.
 Free space is checked before a restore starts. An oversized snapshot fails with
 a clear error rather than filling your disk.
 
-The contents of your files never leave your machine. Connected to the hosted
-control plane, the agent sends pass/fail, timings, snapshot IDs, recipe and
-check names, check messages, error strings, and a label for the repository.
+The contents of your files never leave your machine. There is no hosted
+service: the hosted dashboard was retired in v0.2.0. The only outbound
+connections are to your restic backend and to the notification URLs you put in
+`notify:`, if any. To those, the agent sends pass/fail, timings, a snapshot ID,
+recipe and check names, check messages, error strings, and your repository
+string.
 
 Be aware of what those last three carry, because it is more than "metadata"
-suggests. The repository label is your repo string with credentials stripped,
-so it still contains the host and path, and it appears in the title of every
-alert sent to whatever channels you connect. Check messages can name paths from
-inside the snapshot: a checksum mismatch says which file differed. If either is
-more than you want reaching a third-party chat service, run the agent
-standalone and skip the cloud entirely.
+suggests. The repository string has credentials stripped, but it still contains
+the host and path. Check messages can name paths from inside the snapshot: a
+checksum mismatch says which file differed. If either is more than you want
+reaching ntfy or a webhook, use only the `healthcheck` ping and keep the details
+in your local logs.
 
 Strings go through scrubbing and redaction before they're logged or
 transmitted, including errors from cleanup failures. Credentials embedded in
@@ -64,14 +66,12 @@ CONTEXT, MySQL inlines them in the error itself, and both are removed. Be
 aware this part is pattern matching against known shapes rather than a
 guarantee. It has been wrong twice, so assume a database engine can invent a
 new way to quote your data that we have not covered yet. If a database failure
-must never carry row values off the machine under any circumstances, run the
-agent standalone and skip the cloud. That is the only version of this promise
-that does not depend on us keeping up.
+must never carry row values off the machine under any circumstances, don't
+configure ntfy or a webhook. That is the only version of this promise that does
+not depend on us keeping up.
 
-The agent polls outbound over HTTPS and opens no inbound ports.
-
-Cloud is optional either way. `restorable test --config agent.yaml` runs the
-whole local loop without an account.
+The agent opens no inbound ports, and `restorable test --config agent.yaml`
+runs the whole loop without an account or any network beyond your repository.
 
 ## Known advisories
 
@@ -92,10 +92,6 @@ As for fixing it here: the patches only exist in `github.com/moby/moby/v2`,
 which has published nothing but betas so far. I'm not moving this onto a beta
 dependency over two advisories it doesn't exercise. When moby/moby/v2 goes
 stable the agent migrates and this section goes away.
-
-Dev dependencies of the web control plane may carry their own advisories. Those
-don't ship. `npm audit --omit=dev` on the production tree is the number that
-matters and it should read zero.
 
 ## Out of scope
 

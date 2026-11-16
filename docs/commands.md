@@ -28,6 +28,7 @@ Runs one full restore-verification cycle and exits:
 4. Restores the snapshot into a disposable sandbox directory.
 5. Runs every recipe check.
 6. Destroys the sandbox — on every path out, including failures and panics.
+7. Sends any [notifications](notifications.md) configured in `notify:`.
 
 ```sh
 restorable test --config agent.yaml          # human-readable result
@@ -35,7 +36,11 @@ restorable test --config agent.yaml --json   # machine-readable result on stdout
 ```
 
 Progress goes to stderr, the result to stdout, so `--json` output is safe to
-pipe. Exit codes are cron-friendly:
+pipe.
+
+### Exit codes
+
+Cron-friendly:
 
 | Code | Meaning |
 |---|---|
@@ -43,7 +48,8 @@ pipe. Exit codes are cron-friendly:
 | 1 | Verification failed — the restore or its contents are not what they should be |
 | 2 | Could not test — configuration, repository, or infrastructure problem |
 
-No account or network connectivity is required; this works fully offline.
+No account or network connectivity is required; this works fully offline
+unless you configure notifications.
 
 ## `restorable run`
 
@@ -58,15 +64,13 @@ cleaning up the sandbox.
 restorable run --config agent.yaml
 ```
 
-## `restorable register`
+## Retired in v0.2.0
 
-Connects the agent to the cloud dashboard using a one-time token minted
-there. Optional — see [cloud.md](cloud.md). After registering, `test` and
-`run` report results automatically (`--no-report` skips).
-
-```sh
-restorable register --url https://<control-plane> --token rrt_… --name my-box
-```
+`restorable register` and the hosted dashboard it connected to are gone. The
+`--credentials` and `--no-report` flags are still accepted on `test` and `run`
+so existing cron lines keep working, but they do nothing and print a
+deprecation notice. Use [`notify:`](notifications.md) for alerts. A leftover
+`credentials.json` in your user config directory can be deleted.
 
 ## `restorable version`
 

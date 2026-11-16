@@ -103,21 +103,19 @@ Or run the built-in daemon — add `schedule: "0 3 * * 0"` to `agent.yaml` and:
 restorable run
 ```
 
-## 5. Optional: alerts + dashboard (3 min)
+## 5. Optional: get told when it fails (2 min)
 
-Create an account at [restorable.dev](https://restorable.dev), mint a
-registration token under
-**Agents**, and connect:
+Add a `notify:` block to `agent.yaml`. The two most useful endpoints:
 
-```sh
-restorable register --url https://restorable.dev --token rrt_…
+```yaml
+notify:
+  ntfy: https://ntfy.sh/<long-random-topic>     # phone push on failure
+  healthcheck: https://hc-ping.com/<uuid>       # alerts you if tests stop running
 ```
 
-Every test now reports pass/fail metadata (never your data) to your
-dashboard; add a Telegram/Discord/ntfy/email channel under **Alerts** and
-you'll hear about failures — and about backups that quietly stop being
-tested — without checking anything. See [alerts](alerts.md) and
-[what leaves your machine](cloud.md).
+The healthcheck catches the failure nothing else can: the test silently not
+running at all. See [notifications](notifications.md) for the webhook option
+and exactly what gets sent.
 
 ## Troubleshooting
 

@@ -1,50 +1,85 @@
-# Alerts
+# Notifications
 
-Restorable alerts you when something needs attention — and tells you when it
-recovers. Three conditions are watched:
+A restore test that fails silently is worse than no test, so the agent can
+tell you how each run went. Add a `notify:` block to `agent.yaml`:
 
-| Alert | Fires when |
-|---|---|
-| Restore test failed | A run reports `fail` or `error` |
-| Backup tests gone quiet | No successful test within the repo's staleness window |
-| Agent silent | A registered agent hasn't checked in for 24 hours |
+```yaml
+notify:
+  when: failure                            # or "always"
+  ntfy: https://ntfy.sh/<unguessable-topic>
+  webhook: https://example.com/hooks/restorable
+  healthcheck: https://hc-ping.com/<uuid>
+```
 
-**One alert per incident.** A failing test alerts once, not on every retry.
-When the condition clears — a passing run, tests resuming, the agent
-returning — you get a single recovery notice and the incident closes. A new
-problem after that opens a new incident.
+Every endpoint is optional. With none set, the agent reports through stdout
+and its [exit code](commands.md#exit-codes) only, which is enough if cron
+already mails you on failure.
 
-## Staleness window
+| Endpoint | When it fires | What it sends |
+|---|---|---|
+| `ntfy` | Failed or incomplete runs (every run with `when: always`) | A push with a title, priority `high` on failure, and a text summary |
+| `webhook` | Same as ntfy | `POST` of a JSON summary |
+| `healthcheck` | Every run | `/start` when a run begins, then the bare URL on pass or `/fail` on failure |
 
-By default the window is inferred: 1.5× the gap between your two most recent
-runs, with a 24-hour minimum (a repo with fewer than two runs is never
-stale). Set an explicit window per repo (`stale_after`) if your cadence is
-irregular. This is the meta-failure catcher: it fires when the *watcher*
-dies — agent crashed, cron broken, machine off.
+Delivery is best effort. Each request times out after 15 seconds, a failed
+delivery is logged to stderr, and nothing about notifications ever changes
+the run's result or exit code.
 
-Daemon agents (`restorable run`) heartbeat every 6 hours, so a weekly test
-schedule never looks like a dead agent. If your agent runs from system cron
-instead, agent-silence alerts can be disabled per agent
-(`alert_when_silent`).
+## Catching a dead agent
 
-## Channels
+Alerts on failure can't tell you that tests stopped running: a crashed
+daemon, a broken cron line or a machine that's off all look like silence.
+The `healthcheck` ping covers that. Point it at a dead-man's-switch monitor
+and set the expected period to your test schedule plus some grace:
 
-Configure on **Dashboard → Alerts**. Every channel must pass a **Test**
-before it receives real alerts.
+- [Healthchecks.io](https://healthchecks.io) (free tier, or self-host it)
+- Anything that speaks the same protocol: a ping URL, `/start` and `/fail`
 
-- **Telegram** — click *Connect with Telegram*: it opens the Restorable bot,
-  you press Start, and your chat is linked automatically. No bot setup, no
-  chat IDs. (You don't create a bot — everyone shares the one Restorable bot,
-  and your alerts go only to your chat.)
-- **Discord** — create a webhook in your server's channel settings and paste
-  its URL.
-- **ntfy** — pick a topic; self-hosted servers are supported (https only).
-- **Email** — delivered via AWS SES.
+If a ping doesn't arrive on time, the monitor alerts you through whatever
+channels it supports. The `/start` signal also lets it measure how long each
+restore test takes and flag one that hangs.
 
-## Cron
+## ntfy
 
-Stale and silent detection run from `/api/cron/alerts`, authenticated with
-`CRON_SECRET`. Two schedulers call it: a GitHub Actions workflow
-(`.github/workflows/cron-alerts.yml`) hourly, and a Vercel cron
-(`vercel.json`) daily as a backstop. If alerts seem late, check the Actions
-workflow first: scheduled workflows get disabled after repository inactivity.
+[ntfy](https://ntfy.sh) pushes to your phone with no account. Topics on the
+public server are readable by anyone who knows the name, so use a long random
+topic, or self-host ntfy and put it behind auth (`https://user:pass@ntfy.example.com/topic`
+works; the credentials are never logged).
+
+## Webhook payload
+
+```json
+{
+  "event": "restore_test.finished",
+  "status": "fail",
+  "summary": "Restorable: FAIL\nrepo: /srv/backups/restic\n...",
+  "repo": "/srv/backups/restic",
+  "snapshot_id": "cd10c302...",
+  "error": "",
+  "started_at": "2026-11-16T03:00:00Z",
+  "finished_at": "2026-11-16T03:00:05.5Z",
+  "restore_duration_ms": 4100,
+  "agent_version": "v0.2.0",
+  "checks": [
+    {"recipe": "app", "type": "files", "status": "fail",
+     "message": "required path \"config.php\" not found in restored snapshot",
+     "duration_ms": 12}
+  ]
+}
+```
+
+`status` is `pass`, `fail` (a check failed) or `error` (the test couldn't
+run). Fields may be added in later versions; existing ones won't be renamed.
+
+## What leaves your machine
+
+Only what's listed above, and only to URLs you configure. File contents and
+the repository password never do. Before anything is sent, the agent strips
+credentials from repository URLs and removes row values that database errors
+quote (Postgres `DETAIL`/`CONTEXT` lines, MySQL's inlined values). That
+redaction matches known error shapes, so read [SECURITY.md](../SECURITY.md)
+for its limits.
+
+The notification URLs themselves are secrets (anyone holding one can post to
+it). They are never written to logs, and `restorable init` creates
+`agent.yaml` with owner-only permissions.
